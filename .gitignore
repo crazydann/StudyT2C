@@ -1,14 +1,6 @@
-# secrets
+venv/
+.venv/
 .env
 .streamlit/secrets.toml
-
-# python
-__pycache__/
-*.pyc
-.venv/
-
-# mac
 .DS_Store
-
-# logs
-*.log
+__pycache__/

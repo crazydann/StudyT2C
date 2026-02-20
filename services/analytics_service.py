@@ -1,39 +1,516 @@
+import time
+from collections import Counter
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
+
 import pandas as pd
+
 from services.supabase_client import supabase
 
+
+def _execute_with_retry(fn, retries: int = 3, base_sleep: float = 0.6):
+    last_err = None
+    for i in range(retries):
+        try:
+            return fn()
+        except Exception as e:
+            last_err = e
+            msg = str(e).lower()
+            transient = any(
+                k in msg
+                for k in [
+                    "server disconnected",
+                    "connection reset",
+                    "connection aborted",
+                    "timed out",
+                    "timeout",
+                    "temporary failure",
+                    "network is unreachable",
+                    "connection refused",
+                    "httpx",
+                ]
+            )
+            if (i == retries - 1) or (not transient):
+                raise
+            time.sleep(base_sleep * (2 ** i))
+    raise last_err
+
+
+def _utc_now():
+    return datetime.now(timezone.utc)
+
+
+def _iso(dt: datetime) -> str:
+    return dt.astimezone(timezone.utc).isoformat()
+
+
+# ---------------------------
+# Labels
+# ---------------------------
+_REASON_KO = {
+    "concept": "개념 부족",
+    "calculation": "계산 실수/계산 약함",
+    "reading": "문제 해석/독해",
+    "time": "시간 부족",
+    "guessing": "찍음/감",
+}
+
+_NONSUBMIT_KO = {
+    "time": "시간 부족",
+    "hard": "어려워서 막힘",
+    "forgot": "깜빡함",
+}
+
+
+# ---------------------------
+# ✅ REQUIRED (student_dashboard imports this)
+# ---------------------------
 def get_student_learning_status(student_id: str) -> dict:
-    chat_data = supabase.table("chat_messages").select("subject").eq("student_user_id", student_id).execute().data
-    review_res = supabase.table("problem_items").select("id", count="exact").eq("student_user_id", student_id).lte("next_review_at", "now()").execute()
-    wrong_items = supabase.table("problem_items").select("key_concepts").eq("student_user_id", student_id).eq("is_correct", False).execute().data
-    
-    # 과목별 질문 수 집계 (바 차트용)
+    """
+    학생 대시보드에서 쓰는 가벼운 요약(기존 호환)
+    - 채팅(튜터 질문) 수/과목 분포
+    - 복습(다음 리뷰) 카운트(가능하면)
+    - 오답 key_concepts 일부
+    """
+    chat_data = _execute_with_retry(
+        lambda: supabase.table("chat_messages").select("subject").eq("student_user_id", student_id).execute()
+    ).data or []
+
+    # next_review_at / now() 비교는 DB/스키마 차이로 에러 날 수 있어서 방어적으로
+    review_count = 0
+    try:
+        review_res = _execute_with_retry(
+            lambda: supabase.table("problem_items")
+            .select("id", count="exact")
+            .eq("student_user_id", student_id)
+            .lte("next_review_at", "now()")
+            .execute()
+        )
+        review_count = review_res.count if getattr(review_res, "count", None) else 0
+    except Exception:
+        review_count = 0
+
+    wrong_items = _execute_with_retry(
+        lambda: supabase.table("problem_items")
+        .select("key_concepts")
+        .eq("student_user_id", student_id)
+        .eq("is_correct", False)
+        .limit(200)
+        .execute()
+    ).data or []
+
     subject_counts = {}
     if chat_data:
         df = pd.DataFrame(chat_data)
-        if not df.empty and 'subject' in df.columns:
-            subject_counts = df['subject'].value_counts().to_dict()
-            
-    concepts = list(set([c for item in wrong_items for c in item.get('key_concepts', [])]))
-    
+        if not df.empty and "subject" in df.columns:
+            subject_counts = df["subject"].value_counts().to_dict()
+
+    concepts = list(set([c for item in wrong_items for c in (item.get("key_concepts") or [])]))
+
     return {
-        "chat_count": len(chat_data) if chat_data else 0,
+        "chat_count": len(chat_data),
         "subject_counts": subject_counts,
-        "review_count": review_res.count if review_res.count else 0,
-        "bookmarked_concepts": concepts[:5]
+        "review_count": review_count,
+        "bookmarked_concepts": concepts[:5],
     }
 
-def get_student_stats(student_id: str) -> dict:
-    status = get_student_learning_status(student_id)
-    wrong_res = supabase.table("problem_items").select("id", count="exact").eq("student_user_id", student_id).eq("is_correct", False).execute()
-    
-    # 시스템 경고(Alert) 생성 로직
-    alerts = []
-    if status['chat_count'] == 0: alerts.append("⚠️ 최근 3일간 AI 튜터 질문 이력이 없습니다. (학습 독려 필요)")
-    if len(status['bookmarked_concepts']) > 3: alerts.append("⚠️ 특정 개념에서 반복적인 오답이 발생하고 있습니다.")
-    
+
+# ---------------------------
+# 오답 피드백 기반 학습 성향 요약
+# ---------------------------
+def get_student_learning_profile_summary(student_id: str, lookback_days: int = 14) -> Dict[str, Any]:
+    since = _iso(_utc_now() - timedelta(days=lookback_days))
+
+    rows = _execute_with_retry(
+        lambda: supabase.table("problem_item_feedback")
+        .select("understanding, reason_category, created_at")
+        .eq("student_user_id", student_id)
+        .gte("created_at", since)
+        .order("created_at", desc=True)
+        .limit(300)
+        .execute()
+    ).data or []
+
+    if not rows:
+        return {
+            "lookback_days": lookback_days,
+            "count": 0,
+            "confused_rate": None,
+            "reason_top": [],
+        }
+
+    total = len(rows)
+    confused = len([r for r in rows if (r.get("understanding") or "confused") == "confused"])
+    confused_rate = confused / total if total else None
+
+    reason_counter = Counter()
+    for r in rows:
+        rc = r.get("reason_category")
+        if rc:
+            reason_counter[rc] += 1
+
+    top = []
+    for key, cnt in reason_counter.most_common(3):
+        top.append({"code": key, "label": _REASON_KO.get(key, key), "count": int(cnt)})
+
     return {
-        "chat_count": status['chat_count'], 
-        "total_wrong": wrong_res.count if wrong_res.count else 0, 
-        "top_weak_concepts": status['bookmarked_concepts'],
-        "alerts": alerts
+        "lookback_days": lookback_days,
+        "count": total,
+        "confused_rate": confused_rate,
+        "reason_top": top,
     }
+
+
+# ---------------------------
+# ✅ NEW: 미제출 사유 요약(학생별)
+# ---------------------------
+def get_student_non_submit_reason_summary(student_id: str, lookback_days: int = 14) -> Dict[str, Any]:
+    since = _iso(_utc_now() - timedelta(days=lookback_days))
+
+    rows = _execute_with_retry(
+        lambda: supabase.table("homework_non_submit_reasons")
+        .select("reason_code, created_at")
+        .eq("student_user_id", student_id)
+        .gte("created_at", since)
+        .order("created_at", desc=True)
+        .limit(300)
+        .execute()
+    ).data or []
+
+    if not rows:
+        return {"lookback_days": lookback_days, "count": 0, "top": []}
+
+    total = len(rows)
+    c = Counter()
+    for r in rows:
+        code = r.get("reason_code")
+        if code:
+            c[code] += 1
+
+    top = []
+    for code, cnt in c.most_common(3):
+        top.append({"code": code, "label": _NONSUBMIT_KO.get(code, code), "count": int(cnt)})
+
+    return {"lookback_days": lookback_days, "count": total, "top": top}
+
+
+# ---------------------------
+# 숙제/채점/오답 기존 요약
+# ---------------------------
+def _get_unsubmitted_homework_count(student_id: str, lookback_days: int = 14) -> int:
+    since = _iso(_utc_now() - timedelta(days=lookback_days))
+
+    assigns = _execute_with_retry(
+        lambda: supabase.table("homework_assignments")
+        .select("id, created_at")
+        .eq("student_user_id", student_id)
+        .gte("created_at", since)
+        .execute()
+    ).data or []
+
+    if not assigns:
+        return 0
+
+    a_ids = [a["id"] for a in assigns if a.get("id")]
+    if not a_ids:
+        return 0
+
+    subs = _execute_with_retry(
+        lambda: supabase.table("homework_submissions")
+        .select("assignment_id")
+        .in_("assignment_id", a_ids)
+        .execute()
+    ).data or []
+
+    submitted_ids = set([s.get("assignment_id") for s in subs if s.get("assignment_id")])
+    return len([aid for aid in a_ids if aid not in submitted_ids])
+
+
+def _get_homework_trend(student_id: str, lookback_days: int = 14) -> Dict[str, Any]:
+    since_dt = _utc_now() - timedelta(days=lookback_days)
+    since = _iso(since_dt)
+
+    assigns = _execute_with_retry(
+        lambda: supabase.table("homework_assignments")
+        .select("id, created_at")
+        .eq("student_user_id", student_id)
+        .gte("created_at", since)
+        .execute()
+    ).data or []
+
+    if not assigns:
+        return {
+            "lookback_days": lookback_days,
+            "assigned_total": 0,
+            "submitted_total": 0,
+            "submission_rate": None,
+            "daily": [],
+        }
+
+    a_ids = [a["id"] for a in assigns if a.get("id")]
+    subs = _execute_with_retry(
+        lambda: supabase.table("homework_submissions")
+        .select("assignment_id, created_at")
+        .in_("assignment_id", a_ids)
+        .execute()
+    ).data or []
+
+    assigned_by_day = Counter()
+    for a in assigns:
+        day = (a.get("created_at") or "")[:10]
+        if day:
+            assigned_by_day[day] += 1
+
+    submitted_by_day = Counter()
+    submitted_ids = set()
+    for s in subs:
+        aid = s.get("assignment_id")
+        if aid:
+            submitted_ids.add(aid)
+        day = (s.get("created_at") or "")[:10]
+        if day:
+            submitted_by_day[day] += 1
+
+    assigned_total = len(a_ids)
+    submitted_total = len(submitted_ids)
+    submission_rate = (submitted_total / assigned_total) if assigned_total else None
+
+    daily = []
+    for i in range(lookback_days + 1):
+        d = (since_dt + timedelta(days=i)).date().isoformat()
+        daily.append(
+            {"date": d, "assigned": int(assigned_by_day.get(d, 0)), "submitted": int(submitted_by_day.get(d, 0))}
+        )
+
+    return {
+        "lookback_days": lookback_days,
+        "assigned_total": assigned_total,
+        "submitted_total": submitted_total,
+        "submission_rate": submission_rate,
+        "daily": daily,
+    }
+
+
+def _get_grading_trend(student_id: str, last_n: int = 6) -> Dict[str, Any]:
+    subs = _execute_with_retry(
+        lambda: supabase.table("problem_submissions")
+        .select("id, created_at")
+        .eq("student_user_id", student_id)
+        .order("created_at", desc=True)
+        .limit(last_n)
+        .execute()
+    ).data or []
+
+    if not subs:
+        return {"has_recent": False, "points": []}
+
+    points = []
+    for s in reversed(subs):
+        sid = s.get("id")
+        if not sid:
+            continue
+        items = _execute_with_retry(
+            lambda: supabase.table("problem_items")
+            .select("is_correct")
+            .eq("submission_id", sid)
+            .execute()
+        ).data or []
+        total = len(items)
+        wrong = len([x for x in items if not bool(x.get("is_correct"))])
+        rate = (wrong / total) if total else None
+        points.append(
+            {
+                "submission_id": sid,
+                "date": (s.get("created_at") or "")[:10],
+                "total": total,
+                "wrong": wrong,
+                "wrong_rate": rate,
+            }
+        )
+
+    return {"has_recent": True, "points": points}
+
+
+def _get_top_wrong(student_id: str, top_k: int = 3) -> Dict[str, List[str]]:
+    wrong_rows = _execute_with_retry(
+        lambda: supabase.table("problem_items")
+        .select("key_concepts, reason_category")
+        .eq("student_user_id", student_id)
+        .eq("is_correct", False)
+        .limit(400)
+        .execute()
+    ).data or []
+
+    concept_counter = Counter()
+    reason_counter = Counter()
+
+    for r in wrong_rows:
+        for c in (r.get("key_concepts") or []):
+            if c:
+                concept_counter[c] += 1
+        reason = r.get("reason_category")
+        if reason:
+            reason_counter[reason] += 1
+
+    return {
+        "top_wrong_concepts": [k for k, _ in concept_counter.most_common(top_k)],
+        "top_wrong_reasons": [k for k, _ in reason_counter.most_common(top_k)],
+    }
+
+
+# ---------------------------
+# 상담 스크립트 + 리포트
+# ---------------------------
+def _build_consult_script(summary: Dict[str, Any]) -> str:
+    hw = summary.get("homework", {})
+    gt = summary.get("grading_trend", {})
+    top = summary.get("top_wrong", {})
+    unsubmitted = summary.get("unsubmitted_homework_count", 0)
+    profile = summary.get("learning_profile", {})
+    ns = summary.get("non_submit_reasons", {})
+
+    rate = hw.get("submission_rate")
+    rate_str = f"{int(rate*100)}%" if isinstance(rate, (int, float)) else "데이터 부족"
+
+    points = gt.get("points") or []
+    if points and points[-1].get("wrong_rate") is not None:
+        wr = points[-1]["wrong_rate"]
+        wr_str = f"{int(wr*100)}%"
+    else:
+        wr_str = "데이터 부족"
+
+    c = top.get("top_wrong_concepts") or []
+    r = top.get("top_wrong_reasons") or []
+    c_str = ", ".join(c) if c else "없음"
+    r_str = ", ".join(r) if r else "없음"
+
+    conf = profile.get("confused_rate")
+    conf_str = f"{int(conf*100)}%" if isinstance(conf, (int, float)) else "N/A"
+    rt = profile.get("reason_top") or []
+    rt_str = ", ".join([x.get("label") for x in rt if x.get("label")]) if rt else "N/A"
+
+    ns_top = ns.get("top") or []
+    ns_str = ", ".join([f"{x.get('label')}({x.get('count')})" for x in ns_top]) if ns_top else "N/A"
+
+    return (
+        f"최근 {hw.get('lookback_days', 14)}일 기준 숙제 제출률은 {rate_str}이고, "
+        f"미제출 숙제는 {unsubmitted}건입니다. "
+        f"(학생 선택 기준) 미제출 사유 TOP은 [{ns_str}] 입니다. "
+        f"최근 채점 기준 오답률은 {wr_str} 수준이며, "
+        f"오답이 많이 나온 개념은 [{c_str}], 유형은 [{r_str}] 입니다. "
+        f"(학생 체크 기준) 헷갈림 비율은 {conf_str}이고, 자주 선택한 오답 원인은 [{rt_str}] 입니다. "
+        f"이 데이터를 기반으로 다음 수업/숙제에서 해당 약점을 집중 보완하도록 설계하고 있습니다."
+    )
+
+
+def get_student_consultation_report(student_id: str) -> Dict[str, Any]:
+    homework = _get_homework_trend(student_id, lookback_days=14)
+    unsubmitted = _get_unsubmitted_homework_count(student_id, lookback_days=14)
+    grading_trend = _get_grading_trend(student_id, last_n=6)
+    top_wrong = _get_top_wrong(student_id, top_k=3)
+
+    learning_profile = get_student_learning_profile_summary(student_id, lookback_days=14)
+    non_submit_reasons = get_student_non_submit_reason_summary(student_id, lookback_days=14)
+
+    summary = {
+        "homework": homework,
+        "unsubmitted_homework_count": unsubmitted,
+        "non_submit_reasons": non_submit_reasons,
+        "grading_trend": grading_trend,
+        "top_wrong": top_wrong,
+        "learning_profile": learning_profile,
+    }
+    summary["consult_script"] = _build_consult_script(summary)
+    return summary
+
+
+# ---------------------------
+# 반(클래스) 대시보드용 점수
+# ---------------------------
+def _risk_score(
+    unsubmitted: int,
+    submission_rate: Optional[float],
+    latest_wrong_rate: Optional[float],
+    confused_rate: Optional[float],
+) -> float:
+    score = 0.0
+
+    score += min(40.0, float(unsubmitted) * 10.0)
+
+    if submission_rate is None:
+        score += 10.0
+    else:
+        score += (1.0 - submission_rate) * 30.0
+
+    if latest_wrong_rate is None:
+        score += 10.0
+    else:
+        score += latest_wrong_rate * 20.0
+
+    if confused_rate is None:
+        score += 0.0
+    else:
+        score += float(confused_rate) * 15.0
+
+    return round(min(100.0, score), 1)
+
+
+def get_class_dashboard_rows(student_ids: List[str]) -> List[Dict[str, Any]]:
+    rows: List[Dict[str, Any]] = []
+    for sid in student_ids:
+        try:
+            rep = get_student_consultation_report(sid)
+        except Exception:
+            rep = {
+                "homework": {"assigned_total": 0, "submitted_total": 0, "submission_rate": None},
+                "unsubmitted_homework_count": 0,
+                "non_submit_reasons": {"count": 0, "top": []},
+                "grading_trend": {"points": []},
+                "top_wrong": {"top_wrong_concepts": [], "top_wrong_reasons": []},
+                "learning_profile": {"confused_rate": None, "reason_top": [], "count": 0},
+            }
+
+        hw = rep.get("homework", {}) or {}
+        gt = rep.get("grading_trend", {}) or {}
+        top = rep.get("top_wrong", {}) or {}
+        prof = rep.get("learning_profile", {}) or {}
+
+        unsubmitted = int(rep.get("unsubmitted_homework_count") or 0)
+
+        submission_rate = hw.get("submission_rate")
+        if not isinstance(submission_rate, (int, float)):
+            submission_rate = None
+        else:
+            submission_rate = float(submission_rate)
+
+        points = gt.get("points") or []
+        latest_wrong_rate = None
+        if points:
+            lr = points[-1].get("wrong_rate")
+            if isinstance(lr, (int, float)):
+                latest_wrong_rate = float(lr)
+
+        top_concepts = top.get("top_wrong_concepts") or []
+        top_reasons = top.get("top_wrong_reasons") or []
+
+        conf = prof.get("confused_rate")
+        if not isinstance(conf, (int, float)):
+            conf = None
+        else:
+            conf = float(conf)
+
+        rows.append(
+            {
+                "student_id": sid,
+                "unsubmitted_14d": unsubmitted,
+                "submission_rate_14d": submission_rate,
+                "latest_wrong_rate": latest_wrong_rate,
+                "top_concept": (top_concepts[0] if top_concepts else None),
+                "top_reason": (top_reasons[0] if top_reasons else None),
+                "confused_rate_14d": conf,
+                "risk_score": _risk_score(unsubmitted, submission_rate, latest_wrong_rate, conf),
+            }
+        )
+
+    rows.sort(key=lambda x: x.get("risk_score", 0), reverse=True)
+    return rows

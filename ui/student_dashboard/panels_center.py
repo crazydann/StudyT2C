@@ -1,0 +1,137 @@
+import streamlit as st
+
+from services.llm_service import chat_with_tutor, classify_subject
+from services.db_service import (
+    save_chat_message,
+    list_grading_submissions,
+    get_submission_items,
+)
+from ui.ui_errors import show_error
+
+
+def _is_studying(user: dict) -> bool:
+    return (user.get("status") or "break") == "studying"
+
+
+def _render_recent_grading_history(student_id: str, user: dict):
+    st.subheader("🕘 최근 채점 기록")
+
+    try:
+        subs = list_grading_submissions(student_id, limit=10)
+    except Exception as e:
+        show_error("최근 채점 기록 로드 실패", e, context="list_grading_submissions", show_trace=False)
+        subs = []
+
+    if not subs:
+        st.caption("최근 채점 기록이 없습니다.")
+        return
+
+    labels = []
+    id_by_label = {}
+
+    for s in subs:
+        created = (s.get("created_at") or s.get("uploaded_at") or "")[:19].replace("T", " ")
+        fh = str(s.get("file_hash", ""))[:8]
+        sub_id = s.get("id")
+
+        label = f"{created} · {fh}"
+        if sub_id:
+            try:
+                items = get_submission_items(str(sub_id), limit=300)
+                total = len(items)
+                wrong = sum(1 for it in items if it.get("is_correct") is False)
+                if total > 0:
+                    label = f"{created} · 오답 {wrong}/{total} · {fh}"
+            except Exception:
+                pass
+
+        labels.append(label)
+        if sub_id:
+            id_by_label[label] = str(sub_id)
+
+    if not id_by_label:
+        st.caption("채점 기록을 표시할 수 없습니다.")
+        return
+
+    sel = st.selectbox("기록 선택", options=labels, key=f"hist_sel_{student_id}")
+    sub_id = id_by_label.get(sel)
+    if not sub_id:
+        st.caption("선택한 기록을 찾을 수 없습니다.")
+        return
+
+    try:
+        items = get_submission_items(sub_id)
+    except Exception as e:
+        show_error("채점 상세 로드 실패", e, context="get_submission_items", show_trace=False)
+        items = []
+
+    if not items:
+        st.caption("선택한 기록에 문항이 없습니다.")
+        return
+
+    wrong_first = sorted(items, key=lambda x: (bool(x.get("is_correct")) is True, x.get("item_no") or 0))
+    for it in wrong_first:
+        is_corr = bool(it.get("is_correct"))
+        no = it.get("item_no") or 0
+        with st.expander(f"{no}번 ({'🟢' if is_corr else '🔴'})", expanded=not is_corr):
+            st.write(it.get("explanation_summary"))
+            kc = it.get("key_concepts") or []
+            if kc:
+                st.caption("핵심 개념: " + ", ".join(kc))
+            if user.get("detail_permission") and it.get("explanation_detail"):
+                st.info(it.get("explanation_detail"))
+
+
+def render_center_panel(user: dict, student_id: str, state: dict):
+    st.subheader("💬 AI 튜터")
+
+    studying = _is_studying(user)
+    if studying:
+        st.caption("🟢 studying 모드: 학습 외 질문은 제한될 수 있어요.")
+    else:
+        st.caption("🟡 break 모드: 자유 질문 가능(데모용).")
+
+    state.setdefault("messages", [])
+    if not isinstance(state.get("messages"), list):
+        state["messages"] = []
+
+    for msg in state.get("messages", []):
+        with st.chat_message(msg.get("role", "assistant")):
+            st.markdown(msg.get("content", ""))
+
+    u_input = st.chat_input("질문하세요")
+    if u_input:
+        if studying and any(x in u_input.lower() for x in ["게임", "주식", "연애", "잡담", "농담", "영화"]):
+            st.warning("studying 모드에서는 학습 관련 질문을 우선으로 해주세요.")
+
+        state["messages"].append({"role": "user", "content": u_input})
+        with st.chat_message("user"):
+            st.markdown(u_input)
+
+        with st.chat_message("assistant"):
+            with st.spinner("생각 중..."):
+                try:
+                    subj_class = classify_subject(u_input)
+                    ans = chat_with_tutor(u_input, mode=user.get("status", "break"))
+                except Exception as e:
+                    show_error("AI 튜터 응답 실패", e, context="classify_subject/chat_with_tutor")
+                    subj_class = {"subject": "OTHER", "confidence": 0.0}
+                    ans = "AI 튜터 연결 오류"
+
+                st.markdown(ans)
+                st.caption(f"분류된 과목: {subj_class.get('subject', 'OTHER')}")
+
+        state["messages"].append({"role": "assistant", "content": ans})
+        try:
+            save_chat_message(
+                student_id,
+                user.get("status", "break"),
+                subj_class.get("subject", "OTHER"),
+                u_input,
+                ans,
+            )
+        except Exception:
+            pass
+
+    st.divider()
+    _render_recent_grading_history(student_id, user)

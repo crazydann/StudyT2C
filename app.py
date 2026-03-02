@@ -2,6 +2,13 @@ import streamlit as st
 
 st.set_page_config(page_title="StudyT2C", layout="wide")
 
+# ✅ HEIC/HEIF 지원(Cloud 포함)
+try:
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+except Exception:
+    pass
+    
 from services.supabase_client import supabase
 
 

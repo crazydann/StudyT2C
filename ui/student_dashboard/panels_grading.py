@@ -113,6 +113,10 @@ def render_grading_panel(user: dict, student_id: str, state: dict, render_image)
 
     try:
         raw = uploaded_file.getvalue()
+        name_lower = (uploaded_file.name or "").lower()
+        if name_lower.endswith((".heic", ".heif")):
+            st.error("HEIC/HEIF는 현재 배포 환경에서 지원되지 않습니다. iPhone 사진을 '공유 → 파일에 저장' 후 JPG로 변환하거나, 스크린샷/PNG로 업로드해 주세요.")
+            st.stop()
         base_bytes, norm_name = normalize_upload(raw, uploaded_file.name)
 
         state.setdefault("upload_rotation", {})

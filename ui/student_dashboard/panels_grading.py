@@ -3,6 +3,7 @@ import hashlib
 from typing import List, Dict, Any, Optional
 
 import streamlit as st
+from PIL import UnidentifiedImageError
 
 from services.supabase_client import supabase_service
 
@@ -47,6 +48,20 @@ def _dev_debug_box(student_id: str, title: str, data: Dict[str, Any]) -> None:
         if "file_bytes" in safe:
             safe["file_bytes"] = f"<bytes {len(safe['file_bytes'])}>"
         st.json(safe)
+
+
+def _friendly_heic_error(e: Exception) -> None:
+    # “어떤 HEIC는 라이브포토/보조이미지 때문에 디코딩 실패”를 명시
+    st.error(
+        "HEIC/HEIF 파일을 읽는 중 오류가 발생했습니다.\n\n"
+        "✅ 해결 방법(추천 순서)\n"
+        "1) iPhone에서 사진을 **공유 → 파일에 저장** 후, "
+        "사진 앱/파일 앱에서 **JPG로 변환**해서 업로드\n"
+        "2) 또는 **스크린샷(자동 PNG)** 로 업로드\n"
+        "3) 또는 PC에서 HEIC → JPG 변환 후 업로드\n"
+    )
+    if bool(st.session_state.get("dev_mode", False)):
+        st.caption(f"(dev) {type(e).__name__}: {e}")
 
 
 def render_grading_panel(user: dict, student_id: str, state: dict, render_image) -> None:
@@ -103,7 +118,7 @@ def render_grading_panel(user: dict, student_id: str, state: dict, render_image)
 
     uploaded_file = st.file_uploader(
         "이미지/PDF 업로드",
-        type=["png", "jpg", "jpeg", "heic", "pdf"],
+        type=["png", "jpg", "jpeg", "heic", "heif", "pdf"],  # heif도 허용
         key=f"uploader_{student_id}",
     )
 
@@ -113,20 +128,14 @@ def render_grading_panel(user: dict, student_id: str, state: dict, render_image)
 
     try:
         raw = uploaded_file.getvalue()
-        name_lower = (uploaded_file.name or "").lower()
 
-        # ✅ HEIC/HEIF: pillow-heif가 설치돼 있으면 그대로 진행, 없으면 안내 후 중단
-        if name_lower.endswith((".heic", ".heif")):
-            try:
-                import pillow_heif  # 설치 여부만 체크
-            except Exception:
-                st.error(
-                    "HEIC/HEIF 처리를 위한 pillow-heif가 서버에 설치되지 않았습니다.\n"
-                    "관리자에게 문의하거나, JPG/PNG로 변환 후 업로드해 주세요."
-                )
-                st.stop()
-            
-        base_bytes, norm_name = normalize_upload(raw, uploaded_file.name)
+        # ✅ 여기서 HEIC를 차단하지 않고, normalize_upload가 처리하도록 둔다
+        try:
+            base_bytes, norm_name = normalize_upload(raw, uploaded_file.name)
+        except (UnidentifiedImageError, ValueError) as e:
+            # HEIC 디코딩 실패(예: Too many auxiliary image references)도 여기로 온다
+            _friendly_heic_error(e)
+            return
 
         state.setdefault("upload_rotation", {})
         upload_key = f"{uploaded_file.name}:{len(raw)}"

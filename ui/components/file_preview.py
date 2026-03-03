@@ -1,5 +1,6 @@
 import streamlit as st
 import streamlit.components.v1 as components
+from urllib.parse import urlparse
 
 
 def storage_path_to_url(supabase, storage_path: str, expires_in: int = 3600) -> str:
@@ -11,9 +12,39 @@ def storage_path_to_url(supabase, storage_path: str, expires_in: int = 3600) -> 
     """
     if not storage_path:
         return ""
+
+    # 이미 URL인 경우: Supabase signed URL이면 bucket/path를 파싱해 재발급, 그 외에는 그대로 사용
     if storage_path.startswith("http://") or storage_path.startswith("https://"):
+        try:
+            parsed = urlparse(storage_path)
+            if "/storage/v1/object/sign/" in parsed.path:
+                # /storage/v1/object/sign/<bucket>/<path/to/file> 형태
+                idx = parsed.path.find("/storage/v1/object/sign/") + len("/storage/v1/object/sign/")
+                tail = parsed.path[idx:].lstrip("/")
+                parts = tail.split("/", 1)
+                if len(parts) == 2:
+                    bucket, obj_path = parts[0], parts[1]
+                    try:
+                        res = supabase.storage.from_(bucket).create_signed_url(obj_path, expires_in)
+                        if isinstance(res, dict):
+                            return (
+                                res.get("signedURL")
+                                or res.get("signedUrl")
+                                or res.get("signed_url")
+                                or res.get("url")
+                                or ""
+                            )
+                        if hasattr(res, "get"):
+                            return res.get("signedURL") or res.get("signedUrl") or res.get("url") or ""
+                    except Exception:
+                        pass
+        except Exception:
+            # 파싱 실패 시 기존 URL 그대로 사용
+            return storage_path
+        # Supabase 서명 URL이 아니거나 재발급 실패 시, 원본 URL 반환
         return storage_path
 
+    # "bucket/path/to/file" 형태인 경우
     p = storage_path.lstrip("/")
     parts = p.split("/", 1)
     if len(parts) != 2:

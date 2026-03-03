@@ -1,7 +1,16 @@
+import math
 import pandas as pd
 import streamlit as st
 
 from services.analytics_service import get_class_dashboard_rows
+
+
+def _fmt_pct(v) -> str:
+    if not isinstance(v, (int, float)):
+        return "N/A"
+    if math.isnan(v):
+        return "N/A"
+    return f"{int(v * 100)}%"
 
 
 def render_class_dashboard_tab(state: dict, student_ids, handle_map: dict):
@@ -36,15 +45,9 @@ def render_class_dashboard_tab(state: dict, student_ids, handle_map: dict):
         st.metric("총 학생 수", total_students)
         st.caption(f"고위험 학생(리스크≥70): {high_risk}명")
     with c2:
-        st.metric(
-            "최근 평균 오답률",
-            f"{int(avg_wrong * 100)}%" if isinstance(avg_wrong, (int, float)) else "N/A",
-        )
+        st.metric("최근 평균 오답률", _fmt_pct(avg_wrong))
     with c3:
-        st.metric(
-            "최근 14일 평균 숙제 제출률",
-            f"{int(avg_submit * 100)}%" if isinstance(avg_submit, (int, float)) else "N/A",
-        )
+        st.metric("최근 14일 평균 숙제 제출률", _fmt_pct(avg_submit))
 
     st.divider()
 
@@ -62,15 +65,15 @@ def render_class_dashboard_tab(state: dict, student_ids, handle_map: dict):
     view_df = df[view_cols].copy()
     if "latest_wrong_rate" in view_df:
         view_df["latest_wrong_rate"] = view_df["latest_wrong_rate"].apply(
-            lambda v: f"{int(v * 100)}%" if isinstance(v, (int, float)) else ""
+            lambda v: _fmt_pct(v) if isinstance(v, (int, float)) and not math.isnan(v) else ""
         )
     if "submission_rate_14d" in view_df:
         view_df["submission_rate_14d"] = view_df["submission_rate_14d"].apply(
-            lambda v: f"{int(v * 100)}%" if isinstance(v, (int, float)) else ""
+            lambda v: _fmt_pct(v) if isinstance(v, (int, float)) and not math.isnan(v) else ""
         )
     if "confused_rate_14d" in view_df:
         view_df["confused_rate_14d"] = view_df["confused_rate_14d"].apply(
-            lambda v: f"{int(v * 100)}%" if isinstance(v, (int, float)) else ""
+            lambda v: _fmt_pct(v) if isinstance(v, (int, float)) and not math.isnan(v) else ""
         )
 
     st.markdown("#### 학생별 위험도 및 요약")
@@ -100,5 +103,5 @@ def render_class_dashboard_tab(state: dict, student_ids, handle_map: dict):
         sid = opt_map.get(picked)
         if sid:
             state["selected_student"] = str(sid)
-            st.experimental_rerun()
+            st.rerun()
 

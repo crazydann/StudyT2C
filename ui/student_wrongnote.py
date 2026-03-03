@@ -6,6 +6,8 @@ from services.db_service import (
     update_practice_result,
     get_problem_item_feedback_map,
     upsert_problem_item_feedback,
+    get_submission_stats,
+    get_submission_items,
     DbServiceError,
 )
 from ui.ui_errors import show_error
@@ -33,13 +35,34 @@ _REASON_LABELS = {
 
 def render_student_wrongnote(supabase, user, student_id: str, state: dict):
     st.subheader("📒 나의 오답노트")
-    st.caption("오답 문항을 기반으로 유사문제를 생성하고 바로 풀어볼 수 있어요. (MVP: 세션 오답 중심)")
+    st.caption("오답 문항을 기반으로 유사문제를 생성하고 바로 풀어볼 수 있어요. (최근 채점 기준)")
+
+    # ✅ 세션에 graded_items가 없으면, DB에서 '가장 최근 채점 제출'을 한번 불러와 초기화
+    if not state.get("graded_items"):
+        try:
+            stats = get_submission_stats(str(student_id))
+            latest_id = stats.get("latest_submission_id")
+        except DbServiceError as e:
+            show_error("최근 채점 요약 조회 실패", e, context="get_submission_stats", show_trace=False)
+            latest_id = None
+        except Exception as e:
+            show_error("최근 채점 요약 조회 실패", e, context="get_submission_stats", show_trace=False)
+            latest_id = None
+
+        if latest_id:
+            try:
+                items = get_submission_items(str(latest_id), limit=500)
+                state["graded_items"] = items or []
+            except DbServiceError as e:
+                show_error("최근 채점 문항 조회 실패", e, context="get_submission_items", show_trace=False)
+            except Exception as e:
+                show_error("최근 채점 문항 조회 실패", e, context="get_submission_items", show_trace=False)
 
     graded = state.get("graded_items") or []
     wrongs = [x for x in graded if x.get("is_correct") is False]
 
     if not graded:
-        st.info("먼저 '학습 대시보드'에서 문제를 채점하면 오답노트가 생성됩니다.")
+        st.info("아직 채점된 기록이 없거나, 최근 채점 제출에서 오답 문항을 찾지 못했습니다.")
         return
 
     if not wrongs:

@@ -514,3 +514,166 @@ def get_class_dashboard_rows(student_ids: List[str]) -> List[Dict[str, Any]]:
 
     rows.sort(key=lambda x: x.get("risk_score", 0), reverse=True)
     return rows
+
+
+# ---------------------------
+# 과목별 성취도 (MVP + 데모용)
+# ---------------------------
+_SUBJECT_LABELS = {
+    "KOREAN": "국어",
+    "ENGLISH": "영어",
+    "MATH": "수학",
+    "SCIENCE": "과학",
+}
+
+
+def get_subject_achievement(student_id: str, lookback_days: int = 30) -> Dict[str, Any]:
+    """
+    숙제, 채점, 질문 데이터를 종합한 과목별 성취도 개략치.
+    - 실제 데이터가 부족하면 데모용 고정 값으로 채워준다.
+    """
+    subjects = list(_SUBJECT_LABELS.keys())
+
+    since = _iso(_utc_now() - timedelta(days=lookback_days))
+
+    # 1) 채점 데이터 기반 정답률
+    try:
+        rows = _execute_with_retry(
+            lambda: supabase.table("problem_items")
+            .select("subject_code,is_correct")
+            .eq("student_user_id", student_id)
+            .gte("created_at", since)
+            .limit(800)
+            .execute()
+        ).data or []
+    except Exception:
+        rows = []
+
+    by_sub_total = Counter()
+    by_sub_wrong = Counter()
+    for r in rows:
+        code = (r.get("subject_code") or "").upper()
+        if code not in subjects:
+            continue
+        by_sub_total[code] += 1
+        if not bool(r.get("is_correct")):
+            by_sub_wrong[code] += 1
+
+    # 2) 질문 수 (chat_messages.subject)
+    try:
+        chats = _execute_with_retry(
+            lambda: supabase.table("chat_messages")
+            .select("subject")
+            .eq("student_user_id", student_id)
+            .gte("created_at", since)
+            .execute()
+        ).data or []
+    except Exception:
+        chats = []
+
+    by_sub_q = Counter()
+    for c in chats:
+        code = (c.get("subject") or "").upper()
+        if code in subjects:
+            by_sub_q[code] += 1
+
+    # 3) 점수 산출 (없으면 데모 값)
+    data: List[Dict[str, Any]] = []
+    for code in subjects:
+        total = by_sub_total.get(code, 0)
+        wrong = by_sub_wrong.get(code, 0)
+        if total > 0:
+            correct_rate = (total - wrong) / total
+        else:
+            correct_rate = None
+
+        q_cnt = by_sub_q.get(code, 0)
+
+        if correct_rate is None:
+            # 데이터 부족: 데모용 기본값
+            demo_scores = {"MATH": 0.88, "ENGLISH": 0.72, "KOREAN": 0.55, "SCIENCE": 0.68}
+            correct_rate = demo_scores.get(code, 0.7)
+
+        # 간단한 스코어: 정답률과 질문수(활동량)을 같이 반영
+        score = int(correct_rate * 80 + min(q_cnt, 20) * 1)
+
+        data.append(
+            {
+                "code": code,
+                "label": _SUBJECT_LABELS.get(code, code.title()),
+                "score": score,
+                "correct_rate": correct_rate,
+                "question_count": int(q_cnt),
+            }
+        )
+
+    if not data:
+        # 극단적으로 아무 데이터도 없을 때의 전체 데모
+        data = [
+            {"code": "MATH", "label": "수학", "score": 88, "correct_rate": 0.88, "question_count": 10},
+            {"code": "ENGLISH", "label": "영어", "score": 72, "correct_rate": 0.72, "question_count": 8},
+            {"code": "KOREAN", "label": "국어", "score": 55, "correct_rate": 0.55, "question_count": 5},
+            {"code": "SCIENCE", "label": "과학", "score": 68, "correct_rate": 0.68, "question_count": 7},
+        ]
+
+    avg_score = sum(d["score"] for d in data) / len(data) if data else 0
+    total_questions = sum(d["question_count"] for d in data)
+
+    return {
+        "lookback_days": lookback_days,
+        "summary": {
+            "avg_score": int(avg_score),
+            "total_questions": int(total_questions),
+            "avg_correct_rate": sum(d["correct_rate"] for d in data) / len(data) if data else None,
+        },
+        "subjects": data,
+    }
+
+
+# ---------------------------
+# 공부 시간 중 비공부 질문 모니터링
+# ---------------------------
+def get_offtopic_chat_summary(student_id: str, lookback_days: int = 7) -> Dict[str, Any]:
+    """
+    - studying 모드 + is_study=False 인 chat_messages만 카운트.
+    - 최근 예시 몇 개를 함께 반환.
+    """
+    since = _iso(_utc_now() - timedelta(days=lookback_days))
+    try:
+        rows = _execute_with_retry(
+            lambda: supabase.table("chat_messages")
+            .select("created_at,content,meta")
+            .eq("student_user_id", student_id)
+            .gte("created_at", since)
+            .execute()
+        ).data or []
+    except Exception:
+        rows = []
+
+    items: List[Dict[str, Any]] = []
+    by_cat = Counter()
+
+    for r in rows:
+        meta = r.get("meta") or {}
+        mode = meta.get("mode")
+        is_study = meta.get("is_study")
+        cat = meta.get("offtopic_category") or "OTHER"
+        if mode == "studying" and is_study is False:
+            by_cat[cat] += 1
+            items.append(
+                {
+                    "created_at": r.get("created_at"),
+                    "content": (r.get("content") or "")[:80],
+                    "category": cat,
+                }
+            )
+
+    items = sorted(items, key=lambda x: x.get("created_at") or "", reverse=True)
+    total = len(items)
+
+    return {
+        "lookback_days": lookback_days,
+        "total": total,
+        "by_category": dict(by_cat),
+        "items": items,
+    }

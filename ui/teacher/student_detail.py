@@ -6,6 +6,7 @@ from shared_summary import render_shared_summary
 
 from ui.teacher.consult_tab import render_consult_tab
 from ui.teacher.homework_tab import render_homework_tab
+from ui.teacher.ai_report_tab import render_teacher_ai_report_tab
 
 
 def render_student_detail(supabase, teacher_id: str, state: dict, handle_map: dict):
@@ -34,7 +35,7 @@ def render_student_detail(supabase, teacher_id: str, state: dict, handle_map: di
 
     st.divider()
 
-    t1, t2, t3 = st.tabs(["🧾 상담 리포트", "📦 숙제 제출", "📌 Shared Summary"])
+    t1, t2, t3, t4 = st.tabs(["🧾 상담 리포트", "📦 숙제 제출", "📌 Shared Summary", "🧠 AI 분석"])
     with t1:
         render_consult_tab(supabase, teacher_id, str(student_id))
     with t2:
@@ -44,3 +45,5 @@ def render_student_detail(supabase, teacher_id: str, state: dict, handle_map: di
             render_shared_summary(supabase, str(student_id), student_handle, "teacher", teacher_id)
         except Exception as e:
             show_error("Shared Summary 로드 실패", e, context="render_shared_summary", show_trace=False)
+    with t4:
+        render_teacher_ai_report_tab(str(student_id))

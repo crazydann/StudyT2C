@@ -8,6 +8,7 @@ from ui.student_dashboard import render_student_dashboard
 from ui.student_homework import render_student_homework
 from ui.student_wrongnote import render_student_wrongnote
 from ui.student_history import render_student_history
+from ui.layout import render_app_header, page_card
 
 
 def _safe_call(fn, *args, **kwargs):
@@ -69,6 +70,8 @@ def render_student_console(supabase, user):
         st.session_state["dev_mode"] = False
     st.toggle("🧪 개발 모드", key="dev_mode")
 
+    render_app_header("Student", student_handle)
+
     # 이미지 크게 보기 토글
     if "st_image_fullwidth" not in st.session_state:
         st.session_state["st_image_fullwidth"] = True
@@ -77,82 +80,81 @@ def render_student_console(supabase, user):
     # ✅ bool이 아니라 "함수"로 전달
     st_image_fullwidth = _make_st_image_helper()
 
-    st.title(f"Student - {student_handle}")
+    with page_card():
+        t1, t2, t3, t4 = st.tabs(["🏠 대시보드", "📚 내 숙제", "📝 오답노트", "🕓 기록"])
 
-    t1, t2, t3, t4 = st.tabs(["🏠 대시보드", "📚 내 숙제", "📝 오답노트", "🕓 기록"])
+        with t1:
+            try:
+                state["active_tab"] = "dashboard"
+                _safe_call(
+                    render_student_dashboard,
+                    supabase,
+                    user,
+                    student_id,
+                    state,
+                    st_image_fullwidth=st_image_fullwidth,   # ✅ 여기만 사용
+                )
+            except Exception as e:
+                show_error(
+                    "대시보드 로드 실패",
+                    e,
+                    context="render_student_dashboard",
+                    show_trace=bool(st.session_state.get("dev_mode", False)),
+                )
 
-    with t1:
-        try:
-            state["active_tab"] = "dashboard"
-            _safe_call(
-                render_student_dashboard,
-                supabase,
-                user,
-                student_id,
-                state,
-                st_image_fullwidth=st_image_fullwidth,   # ✅ 여기만 사용
-            )
-        except Exception as e:
-            show_error(
-                "대시보드 로드 실패",
-                e,
-                context="render_student_dashboard",
-                show_trace=bool(st.session_state.get("dev_mode", False)),
-            )
+        with t2:
+            try:
+                state["active_tab"] = "homework"
+                _safe_call(
+                    render_student_homework,
+                    supabase,
+                    user,
+                    student_id,
+                    state,
+                    st_image_fullwidth=st_image_fullwidth,
+                )
+            except Exception as e:
+                show_error(
+                    "내 숙제 로드 실패",
+                    e,
+                    context="render_student_homework",
+                    show_trace=bool(st.session_state.get("dev_mode", False)),
+                )
 
-    with t2:
-        try:
-            state["active_tab"] = "homework"
-            _safe_call(
-                render_student_homework,
-                supabase,
-                user,
-                student_id,
-                state,
-                st_image_fullwidth=st_image_fullwidth,
-            )
-        except Exception as e:
-            show_error(
-                "내 숙제 로드 실패",
-                e,
-                context="render_student_homework",
-                show_trace=bool(st.session_state.get("dev_mode", False)),
-            )
+        with t3:
+            try:
+                state["active_tab"] = "wrongnote"
+                _safe_call(
+                    render_student_wrongnote,
+                    supabase,
+                    user,
+                    student_id,
+                    state,
+                    st_image_fullwidth=st_image_fullwidth,
+                )
+            except Exception as e:
+                show_error(
+                    "오답노트 로드 실패",
+                    e,
+                    context="render_student_wrongnote",
+                    show_trace=bool(st.session_state.get("dev_mode", False)),
+                )
 
-    with t3:
-        try:
-            state["active_tab"] = "wrongnote"
-            _safe_call(
-                render_student_wrongnote,
-                supabase,
-                user,
-                student_id,
-                state,
-                st_image_fullwidth=st_image_fullwidth,
-            )
-        except Exception as e:
-            show_error(
-                "오답노트 로드 실패",
-                e,
-                context="render_student_wrongnote",
-                show_trace=bool(st.session_state.get("dev_mode", False)),
-            )
-
-    with t4:
-        try:
-            state["active_tab"] = "history"
-            _safe_call(
-                render_student_history,
-                supabase,
-                user,
-                student_id,
-                state,
-                st_image_fullwidth=st_image_fullwidth,
-            )
-        except Exception as e:
-            show_error(
-                "기록 로드 실패",
-                e,
-                context="render_student_history",
-                show_trace=bool(st.session_state.get("dev_mode", False)),
-            )
+        with t4:
+            try:
+                state["active_tab"] = "history"
+                _safe_call(
+                    render_student_history,
+                    supabase,
+                    user,
+                    student_id,
+                    state,
+                    st_image_fullwidth=st_image_fullwidth,
+                )
+            except Exception as e:
+                show_error(
+                    "기록 로드 실패",
+                    e,
+                    context="render_student_history",
+                    show_trace=bool(st.session_state.get("dev_mode", False)),
+                )

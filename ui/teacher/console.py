@@ -7,6 +7,7 @@ from ui.teacher.student_list import render_student_list
 from ui.teacher.student_detail import render_student_detail
 from ui.teacher.class_dashboard_tab import render_class_dashboard_tab
 from services.demo_seed import seed_demo_basic
+from ui.layout import render_app_header, page_card
 
 
 def render_teacher_console(supabase, user):
@@ -18,33 +19,37 @@ def render_teacher_console(supabase, user):
     teacher_id = user.get("id")
     teacher_handle = user.get("handle") or "teacher"
 
-    st.title(f"Teacher Console - {teacher_handle}")
+    render_app_header("Teacher Console", teacher_handle)
 
-    # 개발 모드 전용: 데모 데이터 생성 버튼
-    if bool(st.session_state.get("dev_mode", False)):
-        if st.button("🧪 데모 데이터 생성", key="t_seed_demo"):
-            try:
-                info = seed_demo_basic()
-                st.success(
-                    f"데모 유저 생성 완료: teacher={info['teacher']['handle']}, "
-                    f"student={info['student']['handle']}, parent={info['parent']['handle']}"
-                )
-            except Exception as e:
-                st.error(f"데모 데이터 생성 실패: {e}")
+    # 메인 카드 컨테이너
+    with page_card():
+        st.markdown("#### 반 관리")
 
-    state = get_role_state("teacher", teacher_id)
-    state.setdefault("selected_student", None)
+        # 개발 모드 전용: 데모 데이터 생성 버튼
+        if bool(st.session_state.get("dev_mode", False)):
+            if st.button("🧪 데모 데이터 생성", key="t_seed_demo"):
+                try:
+                    info = seed_demo_basic()
+                    st.success(
+                        f"데모 유저 생성 완료: teacher={info['teacher']['handle']}, "
+                        f"student={info['student']['handle']}, parent={info['parent']['handle']}"
+                    )
+                except Exception as e:
+                    st.error(f"데모 데이터 생성 실패: {e}")
 
-    student_ids = fetch_teacher_student_ids(supabase, teacher_id)
-    handle_map = fetch_user_handles_by_ids(supabase, student_ids)
+        state = get_role_state("teacher", teacher_id)
+        state.setdefault("selected_student", None)
 
-    tab_dash, tab_students = st.tabs(["📊 반 대시보드", "👩‍🎓 학생별 상세"])
+        student_ids = fetch_teacher_student_ids(supabase, teacher_id)
+        handle_map = fetch_user_handles_by_ids(supabase, student_ids)
 
-    with tab_dash:
-        render_class_dashboard_tab(state, student_ids, handle_map)
+        tab_dash, tab_students = st.tabs(["📊 반 대시보드", "👩‍🎓 학생별 상세"])
 
-    with tab_students:
-        if state["selected_student"] is None:
-            render_student_list(state, student_ids, handle_map)
-        else:
-            render_student_detail(supabase, teacher_id, state, handle_map)
+        with tab_dash:
+            render_class_dashboard_tab(state, student_ids, handle_map)
+
+        with tab_students:
+            if state["selected_student"] is None:
+                render_student_list(state, student_ids, handle_map)
+            else:
+                render_student_detail(supabase, teacher_id, state, handle_map)

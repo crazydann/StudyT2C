@@ -13,6 +13,36 @@ def _is_studying(user: dict) -> bool:
     return (user.get("status") or "break") == "studying"
 
 
+def _classify_study_relevance(text: str, studying: bool) -> tuple[bool, str]:
+    """
+    질문이 공부 관련인지 간단히 구분 (모니터링용).
+    - studying 모드가 아닐 땐 항상 공부 관련(True)로 본다.
+    """
+    if not studying:
+        return True, "FREE"
+
+    t = (text or "").lower()
+    offtopic_keywords = [
+        "게임",
+        "롤",
+        "배그",
+        "주식",
+        "코인",
+        "연애",
+        "썸",
+        "유튜브",
+        "틱톡",
+        "넷플릭스",
+        "아이돌",
+        "잡담",
+        "농담",
+    ]
+    for kw in offtopic_keywords:
+        if kw in t:
+            return False, "OFFTOPIC"
+    return True, "STUDY"
+
+
 def _render_recent_grading_history(student_id: str, user: dict):
     st.subheader("🕘 최근 채점 기록")
 
@@ -101,8 +131,9 @@ def render_center_panel(user: dict, student_id: str, state: dict):
 
     u_input = st.chat_input("질문하세요")
     if u_input:
-        if studying and any(x in u_input.lower() for x in ["게임", "주식", "연애", "잡담", "농담", "영화"]):
-            st.warning("studying 모드에서는 학습 관련 질문을 우선으로 해주세요.")
+        is_study, category = _classify_study_relevance(u_input, studying)
+        if studying and not is_study:
+            st.warning("지금은 공부 시간이에요. 숙제/개념 관련 질문을 우선으로 해주세요.")
 
         state["messages"].append({"role": "user", "content": u_input})
         with st.chat_message("user"):
@@ -123,12 +154,17 @@ def render_center_panel(user: dict, student_id: str, state: dict):
 
         state["messages"].append({"role": "assistant", "content": ans})
         try:
+            meta = {
+                "mode": user.get("status", "break"),
+                "is_study": bool(is_study),
+                "offtopic_category": category,
+                "subject": subj_class.get("subject", "OTHER"),
+            }
             save_chat_message(
                 student_id,
                 user.get("status", "break"),
-                subj_class.get("subject", "OTHER"),
                 u_input,
-                ans,
+                meta=meta,
             )
         except Exception:
             pass

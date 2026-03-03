@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 
-from services.analytics_service import get_student_learning_status
+from services.analytics_service import get_student_learning_status, get_subject_achievement
 from services.review_service import get_today_reviews, record_review_attempt
 from ui.ui_errors import show_error
 
@@ -89,6 +89,19 @@ def render_left_panel(supabase, student_id: str):
         st.write("📈 **과목별 질문 비율**")
         chart_data = pd.DataFrame(list(subject_counts.items()), columns=["과목", "질문수"]).set_index("과목")
         st.bar_chart(chart_data)
+
+    # 과목별 성취도 요약 (간단 버전)
+    try:
+        ach = get_subject_achievement(student_id, lookback_days=30)
+        subs = ach.get("subjects", []) or []
+        if subs:
+            st.markdown("#### 과목별 성취도 요약")
+            for s in subs:
+                label = s.get("label")
+                score = int(s.get("score") or 0)
+                st.markdown(f"- **{label}**: {score}점")
+    except Exception:
+        pass
 
     st.write("---")
     st.subheader("🎯 오늘의 복습 큐")

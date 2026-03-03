@@ -8,6 +8,7 @@ from services.db_service import (
     DbServiceError,
 )
 from ui.ui_errors import show_error
+from ui.components.file_preview import render_file_preview
 
 
 _REASON_LABELS = {
@@ -121,7 +122,15 @@ def render_student_homework(supabase, user, student_id: str, state: dict, st_ima
             # 제출된 숙제
             if submitted:
                 st.success("이미 제출된 숙제입니다.")
-                st.caption(f"제출 파일: {latest.get('storage_path')}")
+                try:
+                    render_file_preview(
+                        supabase,
+                        latest.get("storage_path") or "",
+                        key_prefix=f"s_hwprev_{student_id}_{aid_str}",
+                        label="🔗 제출한 파일 열기",
+                    )
+                except Exception as e:
+                    show_error("숙제 파일 미리보기 실패", e, context="render_file_preview", show_trace=False)
                 continue
 
             # ----------------------------

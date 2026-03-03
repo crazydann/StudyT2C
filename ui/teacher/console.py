@@ -6,6 +6,7 @@ from ui.teacher.data_loaders import fetch_teacher_student_ids, fetch_user_handle
 from ui.teacher.student_list import render_student_list
 from ui.teacher.student_detail import render_student_detail
 from ui.teacher.class_dashboard_tab import render_class_dashboard_tab
+from services.demo_seed import seed_demo_basic
 
 
 def render_teacher_console(supabase, user):
@@ -18,6 +19,18 @@ def render_teacher_console(supabase, user):
     teacher_handle = user.get("handle") or "teacher"
 
     st.title(f"Teacher Console - {teacher_handle}")
+
+    # 개발 모드 전용: 데모 데이터 생성 버튼
+    if bool(st.session_state.get("dev_mode", False)):
+        if st.button("🧪 데모 데이터 생성", key="t_seed_demo"):
+            try:
+                info = seed_demo_basic()
+                st.success(
+                    f"데모 유저 생성 완료: teacher={info['teacher']['handle']}, "
+                    f"student={info['student']['handle']}, parent={info['parent']['handle']}"
+                )
+            except Exception as e:
+                st.error(f"데모 데이터 생성 실패: {e}")
 
     state = get_role_state("teacher", teacher_id)
     state.setdefault("selected_student", None)

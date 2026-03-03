@@ -5,6 +5,7 @@ from ui.ui_common import get_role_state
 from ui.teacher.data_loaders import fetch_teacher_student_ids, fetch_user_handles_by_ids
 from ui.teacher.student_list import render_student_list
 from ui.teacher.student_detail import render_student_detail
+from ui.teacher.class_dashboard_tab import render_class_dashboard_tab
 
 
 def render_teacher_console(supabase, user):
@@ -24,7 +25,13 @@ def render_teacher_console(supabase, user):
     student_ids = fetch_teacher_student_ids(supabase, teacher_id)
     handle_map = fetch_user_handles_by_ids(supabase, student_ids)
 
-    if state["selected_student"] is None:
-        render_student_list(state, student_ids, handle_map)
-    else:
-        render_student_detail(supabase, teacher_id, state, handle_map)
+    tab_dash, tab_students = st.tabs(["📊 반 대시보드", "👩‍🎓 학생별 상세"])
+
+    with tab_dash:
+        render_class_dashboard_tab(state, student_ids, handle_map)
+
+    with tab_students:
+        if state["selected_student"] is None:
+            render_student_list(state, student_ids, handle_map)
+        else:
+            render_student_detail(supabase, teacher_id, state, handle_map)

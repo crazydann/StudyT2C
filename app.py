@@ -2,6 +2,57 @@ import streamlit as st
 
 st.set_page_config(page_title="StudyT2C", layout="wide")
 
+
+def apply_custom_css():
+    st.markdown(
+        """
+        <style>
+        /* 1. 웹 폰트 적용 (Pretendard) */
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        html, body, [class*="css"] {
+            font-family: 'Pretendard', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        /* 2. Streamlit 기본 메뉴 및 푸터 숨기기 (헤더는 유지) */
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+
+        /* 3. 전체 레이아웃 폭 및 여백 조정 */
+        div.block-container {
+            max-width: 1200px;
+            padding-top: 1.5rem;
+            padding-bottom: 2rem;
+        }
+
+        /* 4. 기본 버튼 스타일 (둥글고 가벼운 그림자) */
+        .stButton>button, .stDownloadButton>button {
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.25s ease;
+        }
+        .stButton>button:hover, .stDownloadButton>button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(15, 23, 42, 0.16);
+        }
+
+        /* 5. Expander를 카드처럼 보이게 */
+        div[data-testid="stExpander"] {
+            border-radius: 10px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+            background-color: #ffffff;
+        }
+        div[data-testid="stExpander"] > div[role="button"] {
+            background-color: #f8fafc;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+apply_custom_css()
+
 # ✅ HEIC/HEIF 지원(Cloud 포함)
 try:
     from pillow_heif import register_heif_opener

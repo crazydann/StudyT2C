@@ -122,16 +122,17 @@ def render_file_preview(supabase, storage_path: str, key_prefix: str, label: str
     # 미리보기
     if ftype == "image":
         try:
-            st.image(view_url, use_container_width=True)
+            # 너무 커 보이지 않도록 적당한 폭으로 제한
+            st.image(view_url, width=360)
         except TypeError:
-            st.image(view_url, use_column_width=True)
+            st.image(view_url, width=360)
         except Exception:
             st.info("이미지 미리보기를 불러오지 못했습니다. 위 링크로 열어 확인하세요.")
 
     elif ftype == "pdf":
         st.caption("PDF 미리보기(가능한 경우):")
         try:
-            components.iframe(view_url, height=720, scrolling=True)
+            components.iframe(view_url, height=520, scrolling=True)
         except Exception:
             st.info("이 환경에서는 PDF iframe 미리보기가 제한될 수 있어요. 위 링크로 열어 확인하세요.")
 

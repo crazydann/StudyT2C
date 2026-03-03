@@ -29,6 +29,40 @@ def fetch_user_handles_by_ids(supabase, user_ids):
         return {uid: f"user-{uid}" for uid in user_ids}
 
 
+def fetch_student_status(supabase, student_id: str) -> str:
+    """
+    자녀의 현재 status(예: studying/break)를 users 테이블에서 조회.
+    실패 시 기본값 'break' 반환.
+    """
+    try:
+        resp = (
+            supabase.table("users")
+            .select("status")
+            .eq("id", student_id)
+            .limit(1)
+            .execute()
+        )
+        rows = resp.data or []
+        if not rows:
+            return "break"
+        return (rows[0].get("status") or "break").strip() or "break"
+    except Exception as e:
+        show_error("학생 AI 모드 로드 실패", e, context="users select (status)", show_trace=False)
+        return "break"
+
+
+def update_student_status(supabase, student_id: str, status: str) -> bool:
+    """
+    자녀의 status 값을 업데이트하여 AI 튜터 모드에 반영.
+    """
+    try:
+        supabase.table("users").update({"status": status}).eq("id", student_id).execute()
+        return True
+    except Exception as e:
+        show_error("학생 AI 모드 저장 실패", e, context="users update (status)", show_trace=False)
+        return False
+
+
 def fetch_homework_assignments(supabase, student_id: str, limit: int = 30):
     try:
         return (

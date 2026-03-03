@@ -4,3 +4,5 @@ venv/
 .streamlit/secrets.toml
 .DS_Store
 __pycache__/
+.env
+환경 정보들

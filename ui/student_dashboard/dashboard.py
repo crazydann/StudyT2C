@@ -38,6 +38,9 @@ def render_student_dashboard(
     state.setdefault("graded_items", [])
     state.setdefault("pending_save", None)
 
+    st.markdown("### 📚 학습 대시보드")
+    st.caption("오늘 할 일과 AI 튜터 대화, 채점 결과를 한눈에 볼 수 있는 화면입니다.")
+
     render_image = _make_image_renderer(st_image_fullwidth)
 
     col_left, col_center, col_right = st.columns([1, 2, 1])

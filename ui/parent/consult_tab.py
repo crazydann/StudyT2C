@@ -179,15 +179,16 @@ def render_consult_tab(supabase, student_id: str):
     profile = report.get("learning_profile", {}) or {}
     ns = report.get("non_submit_reasons", {}) or {}
 
-    _render_consult_kpi_header(report)
+    with st.container(border=True):
+        _render_consult_kpi_header(report)
 
     st.markdown("#### 🗣️ 상담 스크립트(한 문단)")
     st.info(report.get("consult_script") or "")
 
-    st.divider()
+    st.markdown("---")
     _render_non_submit_reason_block(ns)
 
-    st.divider()
+    st.markdown("---")
     _render_learning_profile_block(profile)
 
     daily = hw.get("daily") or []

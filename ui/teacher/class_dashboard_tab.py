@@ -40,16 +40,17 @@ def render_class_dashboard_tab(state: dict, student_ids, handle_map: dict):
     avg_wrong = df["latest_wrong_rate"].dropna().mean() if "latest_wrong_rate" in df else None
     avg_submit = df["submission_rate_14d"].dropna().mean() if "submission_rate_14d" in df else None
 
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.metric("총 학생 수", total_students)
-        st.caption(f"고위험 학생(리스크≥70): {high_risk}명")
-    with c2:
-        st.metric("최근 평균 오답률", _fmt_pct(avg_wrong))
-    with c3:
-        st.metric("최근 14일 평균 숙제 제출률", _fmt_pct(avg_submit))
+    with st.container(border=True):
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.metric("총 학생 수", total_students)
+            st.caption(f"고위험 학생(리스크≥70): {high_risk}명")
+        with c2:
+            st.metric("최근 평균 오답률", _fmt_pct(avg_wrong))
+        with c3:
+            st.metric("최근 14일 평균 숙제 제출률", _fmt_pct(avg_submit))
 
-    st.divider()
+    st.markdown("---")
 
     # 상세 테이블
     view_cols = [

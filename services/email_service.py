@@ -12,11 +12,20 @@ import config
 
 
 def _get_resend_api_key() -> Optional[str]:
-    """실행 시점에 환경변수·config·.env 재로드·.env 파일 직접 파싱까지 시도."""
+    """실행 시점에 환경변수·Streamlit secrets·config·.env 재로드·.env 파일 직접 파싱까지 시도."""
     import os
     key = os.environ.get("RESEND_API_KEY")
     if key and str(key).strip():
         return str(key).strip()
+    # Streamlit(로컬/Cloud) secrets에서 확인
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets") and st.secrets and isinstance(st.secrets.get("RESEND_API_KEY"), str):
+            key = st.secrets.get("RESEND_API_KEY", "").strip()
+            if key:
+                return key
+    except Exception:
+        pass
     key = getattr(config, "RESEND_API_KEY", None)
     if key and str(key).strip():
         return str(key).strip()
@@ -210,7 +219,7 @@ def send_focus_left_alert_with_reason(
     if not recipients:
         return False, "수신자가 없습니다. 이메일 알림 ON, 주기 실시간, 이메일 주소 저장 후 다시 시도해 주세요."
     if not _get_resend_api_key():
-        return False, "발송 설정(RESEND_API_KEY)이 없어 메일을 보낼 수 없습니다. 관리자에게 문의해 주세요."
+        return False, "발송 설정(RESEND_API_KEY)이 없어 메일을 보낼 수 없습니다. 로컬: 프로젝트 루트의 **.env**에 `RESEND_API_KEY=re_...` 추가 후 앱 재시작. Streamlit Cloud: **Settings → Secrets**에 `RESEND_API_KEY` 추가해 주세요."
     ok, resend_error = send_focus_left_alert(recipients, student_handle)
     if ok:
         return True, f"{len(recipients)}명에게 발송했습니다. 도착까지 보통 **10초~1분** 걸립니다. 스팸함도 확인해 주세요."

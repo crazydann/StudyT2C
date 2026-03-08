@@ -53,6 +53,10 @@ Supabase **SQL Editor**에서 **한 번** 실행해 주세요.
 이 SQL을 실행해야 **david / david**, **joshua / joshua** 로그인이 됩니다.  
 (Streamlit Cloud에 `SUPABASE_SERVICE_ROLE_KEY`가 없어도 이 SQL만 실행하면 로그인 가능)
 
+**부모/선생님 화면에서 david, joshua가 보이게 하려면**  
+Supabase SQL Editor에서 `supabase/migrations/link_david_joshua_to_parents_teachers.sql` 도 한 번 실행하세요.  
+(david, joshua를 모든 학부모·선생님과 연결해 다른 학생과 동일하게 표시)
+
 ---
 
 ## 3. MVP 테스트 계정 (자동 생성)

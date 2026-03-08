@@ -17,7 +17,7 @@ def save_chat_message(
     """
     chat_messages 테이블에 질문·답변 한 행으로 저장.
     - content: 사용자 질문
-    - answer: AI 답변 (있으면 question_text/answer_text 컬럼에도 저장)
+    - answer: AI 답변 (meta.answer에 저장, question_text/answer_text 컬럼 없어도 동작)
     """
     try:
         sb = _sbw()
@@ -28,10 +28,10 @@ def save_chat_message(
             "created_at": created_at or _now_iso(),
         }
         if meta is not None:
-            payload["meta"] = meta
-        if answer is not None:
-            payload["question_text"] = content
-            payload["answer_text"] = answer
+            meta_copy = dict(meta)
+            if answer is not None:
+                meta_copy["answer"] = answer
+            payload["meta"] = meta_copy
         sb.table("chat_messages").insert(payload).execute()
         return True
     except Exception as e:

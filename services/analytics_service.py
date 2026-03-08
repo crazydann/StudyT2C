@@ -873,7 +873,7 @@ def get_study_chat_history(student_id: str, lookback_days: int = 30, limit: int 
     try:
         rows = _execute_with_retry(
             lambda: sb.table("chat_messages")
-            .select("created_at,content,meta,question_text,answer_text")
+            .select("created_at,content,meta")
             .eq("student_user_id", student_id)
             .gte("created_at", since)
             .order("created_at", desc=True)
@@ -901,7 +901,7 @@ def get_study_chat_history(student_id: str, lookback_days: int = 30, limit: int 
         if is_study is not True and is_study != True and str(is_study).lower() != "true":
             continue
         question = r.get("question_text") or r.get("content") or ""
-        answer = r.get("answer_text") or ""
+        answer = r.get("answer_text") or meta.get("answer") or ""
         if not question.strip():
             continue
         items.append({

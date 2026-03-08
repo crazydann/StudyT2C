@@ -276,7 +276,32 @@ def route_to_ui(role, user):
 
 
 def _is_student_login_app() -> bool:
-    """STUDENT_LOGIN_APP env이 true면 로그인학생 화면 모드. config 의존 최소화."""
+    """
+    로그인학생 화면 모드 여부.
+    1) 환경변수 STUDENT_LOGIN_APP=true
+    2) URL 쿼리 ?app=student 또는 ?student=1 (같은 배포에서 studyt2c만 로그인 쓰고 싶을 때)
+    3) 이번 세션에서 이미 쿼리로 로그인 모드 켠 적 있으면 유지
+    """
+    # 쿼리 파라미터로 모드 전환 (같은 앱에서 studyt2c / admin 구분용)
+    try:
+        q = getattr(st, "query_params", None)
+        if q is not None:
+            raw = (q.get("app") or q.get("student") or "") if hasattr(q, "get") else ""
+        else:
+            q = getattr(st, "experimental_get_query_params", lambda: {})()
+            raw = (q.get("app") or q.get("student") or [""])[0] if isinstance(q, dict) else ""
+        app_val = (raw[0] if isinstance(raw, (list, tuple)) else raw) or ""
+    except Exception:
+        app_val = ""
+    app_val = str(app_val).strip().lower()
+    if app_val in ("student", "1", "true"):
+        st.session_state["_student_login_mode"] = True
+    elif app_val == "admin":
+        st.session_state["_student_login_mode"] = False
+
+    if st.session_state.get("_student_login_mode") is True:
+        return True
+
     try:
         import config
         fn = getattr(config, "is_student_login_app", None)

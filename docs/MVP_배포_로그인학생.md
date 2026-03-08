@@ -7,21 +7,36 @@
 - **admin.studyt2c.streamlit.app** (또는 별도 앱)  
   기존처럼 계정 선택 후 학생/학부모/선생 전체 화면.
 
-같은 코드베이스로 두 URL에서 다르게 동작하려면 **배포별 환경 변수**만 다르게 설정하면 됩니다.
+**같은 배포(같은 앱)를 쓰는 경우**  
+studyt2c와 admin이 한 앱을 가리키면, **URL 쿼리**로 구분합니다.
+
+- 로그인 화면: **https://studyt2c.streamlit.app/?app=student**  
+  (또는 `?student=1` — 한 번 들어가면 세션 동안 로그인 모드 유지)
+- 계정 선택(admin) 화면: **https://studyt2c.streamlit.app/** (쿼리 없음) 또는 **?app=admin**
 
 ---
 
-## 1. studyt2c.streamlit.app 배포 설정
+## 1. 로그인 화면이 나오게 하는 방법 (둘 중 하나)
 
-Streamlit Cloud에서 해당 앱의 **Settings → Secrets (또는 Environment variables)** 에서:
+### 방법 A: 같은 앱을 쓸 때 (studyt2c = admin 한 배포)
 
-| 변수 | 값 | 비고 |
-|------|-----|------|
-| `STUDENT_LOGIN_APP` | `true` | 로그인 모드 사용 |
-| `SUPABASE_URL` | (동일) | |
-| `SUPABASE_ANON_KEY` | (동일) | |
-| `SUPABASE_SERVICE_ROLE_KEY` | (동일) | david/joshua 자동 생성에 필요 |
-| `GROQ_API_KEY` | (동일) | AI 튜터용 |
+**로그인 화면**이 나오는 주소로 들어가세요.
+
+- **https://studyt2c.streamlit.app/?app=student**  
+  또는 **https://studyt2c.streamlit.app/?student=1**
+
+한 번 이 주소로 들어가면, 같은 세션 동안은 로그인 모드가 유지됩니다.  
+계정 선택(admin) 화면은 쿼리 없이 **https://studyt2c.streamlit.app/** 또는 **?app=admin** 으로 들어가면 됩니다.
+
+### 방법 B: 배포를 두 개 쓸 때 (studyt2c / admin 각각 다른 앱)
+
+Streamlit Cloud에서 **studyt2c** 앱의 **Settings → Secrets** 에만:
+
+| 변수 | 값 |
+|------|-----|
+| `STUDENT_LOGIN_APP` | `true` |
+
+이렇게 두면, 그 앱(studyt2c.streamlit.app)은 쿼리 없이 접속해도 로그인 화면이 나옵니다.
 
 ---
 

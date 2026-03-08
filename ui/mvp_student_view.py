@@ -5,17 +5,19 @@
 import time
 import streamlit as st
 
+import random
+
 import config
 from ui.student_dashboard.panels_center import render_center_panel
 from ui.student_dashboard.panels_grading import render_grading_panel
 from ui.student_dashboard.focus_tracker_component import render_focus_tracker
 from services.analytics_service import get_study_chat_history
-from services.llm_service import generate_quiz_from_qa
-from services.concept_review_service import save_attempt
+from services.llm_service import generate_quiz_from_qa, recommend_concepts_from_chat, explain_concept
+from services.concept_review_service import save_attempt, save_quiz, list_quizzes, get_quiz_by_id
 from ui.quiz_weakness_ui import render_quiz_weakness_section
 from ui.ui_errors import show_error
 from ui.ui_common import format_ts_short
-from services.db_service import list_grading_submissions, get_submission_items
+from services.db_service import list_grading_submissions, get_submission_items, list_chat_messages
 
 
 def _make_image_renderer():
@@ -204,6 +206,54 @@ def render_mvp_student_view(supabase, user: dict):
         pass
 
 
+@st.dialog("다시 풀기")
+def _dialog_retry_quiz(student_id: str, quiz_id: str) -> None:
+    """지난 문제 다시 풀기 팝업."""
+    quiz = get_quiz_by_id(quiz_id) if quiz_id else None
+    if not quiz:
+        st.warning("해당 문제를 찾을 수 없어요.")
+        if st.button("닫기", key="close_retry_quiz"):
+            st.session_state.pop("mvp_retry_quiz_id", None)
+            st.rerun()
+        return
+    options = quiz.get("options") or []
+    if not isinstance(options, list):
+        options = []
+    correct_index = int(quiz.get("correct_index", 0))
+    st.markdown("**다시 풀기**")
+    st.write(quiz.get("quiz_question") or "(문제 없음)")
+    choice = st.radio("보기", options=range(len(options)), format_func=lambda i: options[i] if i < len(options) else "", key="retry_quiz_radio", label_visibility="collapsed")
+    if st.button("제출", key="retry_quiz_submit"):
+        save_attempt(
+            student_id,
+            quiz.get("source_question") or "",
+            quiz.get("source_answer") or "",
+            quiz.get("quiz_question") or "",
+            correct_index,
+            choice,
+        )
+        if choice == correct_index:
+            st.success("✅ 정답입니다.")
+        else:
+            st.error("❌ 오답입니다.")
+        st.caption(f"정답: {options[correct_index]}")
+    if st.button("닫기", key="close_retry_quiz"):
+        st.session_state.pop("mvp_retry_quiz_id", None)
+        st.rerun()
+
+
+@st.dialog("개념 설명")
+def _dialog_concept_explanation(concept_name: str) -> None:
+    """추천 개념 설명 팝업."""
+    st.markdown(f"**📚 {concept_name}**")
+    with st.spinner("설명 불러오는 중..."):
+        explanation = explain_concept(concept_name)
+    st.write(explanation)
+    if st.button("닫기", key="close_concept_popup"):
+        st.session_state.pop("mvp_concept_popup", None)
+        st.rerun()
+
+
 def _render_left_sidebar(student_id: str, student_handle: str, state: dict) -> None:
     """좌측: 질의 개념 복습·문제 만들기·지난 문제들·추천 공부 개념 (첨부 UI)."""
     st.markdown("**💡 질의 개념 복습**")
@@ -214,22 +264,52 @@ def _render_left_sidebar(student_id: str, student_handle: str, state: dict) -> N
     st.markdown("---")
     st.markdown("**🕘 지난 문제들**")
     try:
-        history = get_study_chat_history(student_id, lookback_days=7, limit=5)
-        items = (history.get("items") or []) if history else []
+        past_quizzes = list_quizzes(student_id, limit=20)
     except Exception:
-        items = []
-    if not items:
-        st.caption("아직 질문이 없어요")
+        past_quizzes = []
+    if not past_quizzes:
+        st.caption("아직 만든 문제가 없어요. 문제 만들기를 눌러 보세요.")
     else:
-        for it in items[:5]:
-            q = (it.get("question") or "")[:40]
-            if len((it.get("question") or "")) > 40:
-                q += "…"
-            st.caption(f"· {q}")
+        for q in past_quizzes:
+            label = (q.get("quiz_question") or "")[:42]
+            if len(q.get("quiz_question") or "") > 42:
+                label += "…"
+            if st.button(label, key=f"retry_quiz_{q.get('id')}", use_container_width=True):
+                st.session_state["mvp_retry_quiz_id"] = str(q.get("id"))
+                st.rerun()
+    if st.session_state.get("mvp_retry_quiz_id"):
+        try:
+            _dialog_retry_quiz(student_id, st.session_state["mvp_retry_quiz_id"])
+        except TypeError:
+            st.session_state.pop("mvp_retry_quiz_id", None)
 
     st.markdown("**📚 추천 공부 개념**")
-    for concept in ["일차방정식 풀이", "제곱수 계산", "삼각형 성질", "비례식"]:
-        st.markdown(f"- {concept}")
+    try:
+        chat_rows = list_chat_messages(student_id, limit=25)
+        chat_items = []
+        for r in chat_rows:
+            if (r.get("role") or "").strip().lower() != "user":
+                continue
+            content = r.get("content") or ""
+            meta = r.get("meta") or {}
+            answer = meta.get("answer") or ""
+            if content or answer:
+                chat_items.append({"question": content, "answer": answer})
+        concepts = recommend_concepts_from_chat(chat_items, max_concepts=6) if chat_items else []
+    except Exception:
+        concepts = []
+    if not concepts:
+        st.caption("AI 튜터와 대화하면 추천 개념이 나타나요.")
+    else:
+        for i, c in enumerate(concepts):
+            if st.button(f"· {c}", key=f"concept_btn_{student_id}_{i}", use_container_width=True):
+                st.session_state["mvp_concept_popup"] = c
+                st.rerun()
+    if st.session_state.get("mvp_concept_popup"):
+        try:
+            _dialog_concept_explanation(st.session_state["mvp_concept_popup"])
+        except TypeError:
+            st.session_state.pop("mvp_concept_popup", None)
 
 
 def _render_right_panel(user: dict, student_id: str, state: dict) -> None:
@@ -277,23 +357,34 @@ def _render_quiz_from_qa(student_id: str, student_handle: str = "학생") -> Non
         st.session_state.pop(key_data, None)
         st.session_state.pop(key_submitted, None)
         st.session_state.pop(key_choice, None)
-        with st.spinner("최근 질문을 불러와 문제를 만드는 중..."):
+        with st.spinner("새 문제를 만드는 중..."):
             try:
-                history = get_study_chat_history(student_id, lookback_days=7, limit=10)
+                history = get_study_chat_history(student_id, lookback_days=7, limit=15)
                 items = history.get("items") or []
                 if not items:
                     st.warning("최근 AI 튜터에서 나눈 **공부 관련 질문**이 없어요. 먼저 AI 튜터로 질문해 보세요.")
                 else:
-                    item = items[0]
+                    item = random.choice(items)
                     quiz = generate_quiz_from_qa(
                         item.get("question") or "",
                         item.get("answer") or "",
                     )
                     if quiz:
+                        source_q = item.get("question") or ""
+                        source_a = item.get("answer") or ""
+                        quiz_id = save_quiz(
+                            student_id,
+                            source_q,
+                            source_a,
+                            quiz.get("question") or "",
+                            quiz.get("options") or [],
+                            int(quiz.get("correct_index", 0)),
+                        )
                         st.session_state[key_data] = {
                             **quiz,
-                            "source_question": item.get("question") or "",
-                            "source_answer": item.get("answer") or "",
+                            "source_question": source_q,
+                            "source_answer": source_a,
+                            "_quiz_id": quiz_id,
                         }
                         st.session_state[key_submitted] = False
                         st.session_state[key_choice] = None

@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from services.supabase_client import supabase_service, supabase
 
@@ -105,3 +105,76 @@ def get_concept_review_recent_all(student_id: str, limit: int = 50) -> List[Dict
         return rows
     except Exception:
         return []
+
+
+# ---------------------------
+# concept_review_quizzes: 만든 문제 저장 (지난 문제들·재풀이)
+# ---------------------------
+def save_quiz(
+    student_user_id: str,
+    source_question: str,
+    source_answer: str,
+    quiz_question: str,
+    options: List[str],
+    correct_index: int,
+) -> Optional[str]:
+    """만든 문제 1건 저장. 반환: id, 실패 시 None."""
+    try:
+        row = (
+            _sb()
+            .table("concept_review_quizzes")
+            .insert({
+                "student_user_id": student_user_id,
+                "source_question": (source_question or "")[:1000],
+                "source_answer": (source_answer or "")[:2000],
+                "quiz_question": (quiz_question or "")[:1000],
+                "options": options or [],
+                "correct_index": correct_index,
+            })
+            .execute()
+        )
+        data = (row.data or []) if hasattr(row, "data") else []
+        if data and isinstance(data, list) and len(data) > 0:
+            return data[0].get("id")
+        return None
+    except Exception:
+        return None
+
+
+def list_quizzes(student_user_id: str, limit: int = 30) -> List[Dict[str, Any]]:
+    """지난 문제들: 최근 생성된 퀴즈 목록 (재풀이용)."""
+    try:
+        rows = (
+            _sb()
+            .table("concept_review_quizzes")
+            .select("id, source_question, source_answer, quiz_question, options, correct_index, created_at")
+            .eq("student_user_id", student_user_id)
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+            .data
+            or []
+        )
+        return rows
+    except Exception:
+        return []
+
+
+def get_quiz_by_id(quiz_id: str) -> Optional[Dict[str, Any]]:
+    """퀴즈 1건 조회 (재풀이 팝업용)."""
+    try:
+        rows = (
+            _sb()
+            .table("concept_review_quizzes")
+            .select("id, source_question, source_answer, quiz_question, options, correct_index, created_at")
+            .eq("id", quiz_id)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+        if rows:
+            return rows[0]
+        return None
+    except Exception:
+        return None

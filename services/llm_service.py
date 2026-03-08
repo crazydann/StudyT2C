@@ -260,3 +260,60 @@ def generate_parent_report(student_name: str, stats: dict) -> str:
     except Exception as e:
         logger.exception("generate_parent_report failed: %s", e)
         return "리포트 생성 실패"
+
+
+def recommend_concepts_from_chat(chat_items: List[Dict[str, Any]], max_concepts: int = 6) -> List[str]:
+    """
+    AI 튜터 Q&A 이력을 보고, 더 이해하면 좋을 개념을 추천.
+    chat_items: [{"question": "...", "answer": "..."}, ...]
+    반환: 개념 이름 리스트 (예: ["일차방정식 풀이", "제곱수 계산"])
+    """
+    if not chat_items:
+        return []
+    summary = "\n\n".join(
+        f"Q: {(it.get('question') or '')[:200]}\nA: {(it.get('answer') or '')[:300]}"
+        for it in chat_items[:15]
+    )
+    prompt = (
+        "다음은 학생이 AI 튜터와 나눈 질문·답변 일부입니다.\n\n"
+        f"{summary}\n\n"
+        "이 대화를 바탕으로, 이 학생이 **더 공부하면 좋을 개념**을 "
+        f"한글 개념명으로 최대 {max_concepts}개 추천해 주세요. "
+        "초·중·고 수준에 맞는 구체적인 개념명으로 (예: 일차방정식 풀이, 제곱수 계산, 삼각형 성질).\n\n"
+        "반드시 JSON 배열만 한 줄로 출력하세요. 예: [\"개념1\", \"개념2\"]"
+    )
+    try:
+        client = _get_groq_client()
+        res = client.chat.completions.create(
+            model=_model_text(),
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+        )
+        raw = (res.choices[0].message.content or "").strip()
+        if raw.startswith("["):
+            arr = json.loads(raw)
+            if isinstance(arr, list):
+                return [str(x).strip() for x in arr[:max_concepts] if x]
+        return []
+    except Exception as e:
+        logger.exception("recommend_concepts_from_chat failed: %s", e)
+        return []
+
+
+def explain_concept(concept_name: str) -> str:
+    """개념 이름에 대한 짧은 설명 문단 (학생용)."""
+    prompt = (
+        f"'{concept_name}' 개념을 초·중·고 학생이 이해할 수 있도록 "
+        "2~4문장으로 쉽게 설명해 주세요. 한글로만 작성하세요."
+    )
+    try:
+        client = _get_groq_client()
+        res = client.chat.completions.create(
+            model=_model_text(),
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.4,
+        )
+        return (res.choices[0].message.content or "").strip() or "설명을 불러오지 못했습니다."
+    except Exception as e:
+        logger.exception("explain_concept failed: %s", e)
+        return "설명을 불러오는 중 오류가 발생했습니다."

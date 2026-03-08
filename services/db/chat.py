@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from services.db.base import DbServiceError, _now_iso, _safe_order, _sb
+from services.db.base import DbServiceError, _now_iso, _safe_order, _sb, _sbw
 
 
 def save_chat_message(
@@ -22,7 +22,7 @@ def save_chat_message(
       - meta (optional jsonb)
     """
     try:
-        sb = _sb()
+        sb = _sbw()
         payload: Dict[str, Any] = {
             "student_user_id": student_user_id,
             "role": role,

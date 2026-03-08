@@ -8,6 +8,7 @@ from services.db_service import (
 )
 from services.email_service import send_offtopic_alert_to_recipients
 from services.notification_settings_service import get_offtopic_recipients_realtime
+from ui.ui_common import format_ts_kst
 from ui.ui_errors import show_error
 
 OFFTOPIC_EMAIL_COOLDOWN_SEC = 3600
@@ -81,7 +82,7 @@ def _render_recent_grading_history(student_id: str, user: dict):
     id_by_label = {}
 
     for s in subs:
-        created = (s.get("created_at") or s.get("uploaded_at") or "")[:19].replace("T", " ")
+        created = format_ts_kst(s.get("created_at") or s.get("uploaded_at"), with_seconds=True)
         fh = str(s.get("file_hash", ""))[:8]
         sub_id = s.get("id")
 

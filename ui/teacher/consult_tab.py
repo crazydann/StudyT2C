@@ -1,6 +1,8 @@
 # ui/teacher/consult_tab.py
 import streamlit as st
 
+from ui.ui_common import format_ts_kst
+
 from ui.ui_errors import show_error
 from services.analytics_service import get_student_consultation_report
 
@@ -65,7 +67,7 @@ def render_consult_tab(supabase, teacher_id: str, student_id: str):
     options = []
     row_map = {}
     for row in logs:
-        c_at = (row.get("created_at") or "")[:19].replace("T", " ")
+        c_at = format_ts_kst(row.get("created_at"), with_seconds=True)
         ol = (row.get("one_liner") or "").strip()
         title = f"{c_at} · {ol}" if c_at else (ol if ol else str(row.get("id")))
         options.append(title)
@@ -75,7 +77,7 @@ def render_consult_tab(supabase, teacher_id: str, student_id: str):
     row = row_map.get(selected) or logs[0]
 
     with st.expander("상담 로그 상세 보기", expanded=consult_mode):
-        c_at = (row.get("created_at") or "")[:19].replace("T", " ")
+        c_at = format_ts_kst(row.get("created_at"), with_seconds=True)
         if c_at:
             st.caption(f"일시: {c_at}")
 

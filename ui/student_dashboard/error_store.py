@@ -95,7 +95,10 @@ def render_persisted_error(student_id: str) -> None:
     with st.container(border=True):
         meta_line = f"occurrences: {count}"
         if isinstance(ts, (int, float)):
-            meta_line += f" · last_ts: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(ts))}"
+            from datetime import datetime, timezone, timedelta
+            kst = timezone(timedelta(hours=9))
+            dt = datetime.fromtimestamp(ts, tz=kst)
+            meta_line += f" · last_ts: {dt.strftime('%Y-%m-%d %H:%M:%S')} (KST)"
         st.caption(meta_line)
 
         show = st.checkbox("상세 오류 보기 (개발용)", value=False, key=f"{k}_toggle")

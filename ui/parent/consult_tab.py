@@ -3,6 +3,7 @@ import pandas as pd
 import streamlit as st
 
 from ui.ui_errors import show_error
+from ui.ui_common import format_ts_kst
 from services.analytics_service import get_student_consultation_report
 from ui.parent.dev import render_dev_json
 from ui.parent.data_loaders import fetch_teacher_consult_logs_for_student
@@ -110,7 +111,7 @@ def _render_teacher_consult_summary_and_history(supabase, student_id: str):
         return
 
     latest = logs[0]
-    created = (latest.get("created_at") or "")[:19].replace("T", " ")
+    created = format_ts_kst(latest.get("created_at"), with_seconds=True)
     one_liner = latest.get("one_liner") or ""
 
     if created:
@@ -123,7 +124,7 @@ def _render_teacher_consult_summary_and_history(supabase, student_id: str):
     key_map = {}
     for row in logs:
         cid = row.get("id")
-        c_at = (row.get("created_at") or "")[:19].replace("T", " ")
+        c_at = format_ts_kst(row.get("created_at"), with_seconds=True)
         ol = (row.get("one_liner") or "").strip()
         title = f"{c_at} · {ol}" if c_at else (ol if ol else str(cid))
         options.append(title)
@@ -133,7 +134,7 @@ def _render_teacher_consult_summary_and_history(supabase, student_id: str):
     selected = key_map.get(selected_title) or latest
 
     with st.expander("상담 로그 상세 보기", expanded=False):
-        c_at = (selected.get("created_at") or "")[:19].replace("T", " ")
+        c_at = format_ts_kst(selected.get("created_at"), with_seconds=True)
         if c_at:
             st.caption(f"일시: {c_at}")
 

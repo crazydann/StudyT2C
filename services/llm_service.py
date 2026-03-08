@@ -1,7 +1,7 @@
 import json
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import config
 from groq import Groq
@@ -135,6 +135,106 @@ def generate_practice_question(key_concepts: list) -> Optional[dict]:
             time.sleep(0.3)
 
     return None
+
+
+def generate_quiz_from_qa(question_text: str, answer_text: str) -> Optional[Dict[str, Any]]:
+    """
+    AI 튜터에서 나온 질문·답변을 바탕으로 5지선다 객관식 1문항 생성.
+    반환: {"question": "...", "options": ["1) ...", "2) ...", ... 5개], "correct_index": 0~4}
+    실패 시 None.
+    """
+    prompt = (
+        "다음은 학생이 AI 튜터에게 했던 질문과 튜터의 답변입니다.\n\n"
+        f"질문: {question_text[:400]}\n\n답변: {answer_text[:600]}\n\n"
+        "이 내용을 바탕으로 **객관식 문제 1개**를 만들어 주세요. "
+        "보기는 반드시 **5개(1번~5번)**이고, 정답은 1개만 있습니다.\n\n"
+        "반드시 아래 JSON 형식으로만 응답하세요. 다른 설명 금지.\n"
+        '{"question": "문제 문장", "options": ["1) 보기1", "2) 보기2", "3) 보기3", "4) 보기4", "5) 보기5"], "correct_index": 0}\n'
+        "correct_index는 정답이 몇 번째 보기인지 0부터 셀 때의 인덱스(0~4)입니다."
+    )
+    for attempt in range(2):
+        try:
+            client = _get_groq_client()
+            res = client.chat.completions.create(
+                model=_model_text(),
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+            )
+            raw = res.choices[0].message.content
+            data = _extract_json(raw)
+            if not isinstance(data, dict) or not data.get("question"):
+                raise ValueError("quiz json missing question")
+            options = data.get("options") or []
+            if not isinstance(options, list) or len(options) < 5:
+                # 5개 미만이면 나머지 빈 문자열로 채움
+                options = list(options)[:5]
+                while len(options) < 5:
+                    options.append(f"{len(options)+1}) (보기 없음)")
+            else:
+                options = [str(o) for o in options[:5]]
+            correct_index = int(data.get("correct_index", 0))
+            if correct_index < 0 or correct_index > 4:
+                correct_index = 0
+            return {
+                "question": str(data.get("question", "")).strip(),
+                "options": options,
+                "correct_index": correct_index,
+            }
+        except Exception as e:
+            logger.exception("generate_quiz_from_qa failed (attempt=%s): %s", attempt + 1, e)
+            time.sleep(0.3)
+    return None
+
+
+def generate_weakness_analysis_from_quiz(
+    student_name: str,
+    stats: Dict[str, Any],
+    wrong_items: List[Dict[str, Any]],
+    recent_attempts: List[Dict[str, Any]],
+) -> str:
+    """
+    질의개념복습 이력을 보고 AI가 취약점을 분석해 문단으로 반환.
+    """
+    total = stats.get("total") or 0
+    correct = stats.get("correct") or 0
+    wrong = stats.get("wrong") or 0
+    accuracy_pct = stats.get("accuracy_pct") or 0
+
+    prompt = (
+        f"다음은 학생 '{student_name}'의 **질의개념복습** 풀이 이력 요약입니다.\n\n"
+        f"- 총 풀이: {total}문항, 정답: {correct}, 오답: {wrong}, 정답률: {accuracy_pct}%\n\n"
+    )
+    if recent_attempts:
+        prompt += "【최근 풀이 샘플 (최대 10건)】\n"
+        for i, a in enumerate(recent_attempts[:10], 1):
+            q = (a.get("source_question") or "")[:150]
+            quiz_q = (a.get("quiz_question") or "")[:120]
+            ok = "O" if a.get("is_correct") else "X"
+            prompt += f"{i}. 원질문: {q}... | 출제문제: {quiz_q}... | {ok}\n"
+        prompt += "\n"
+    if wrong_items:
+        prompt += "【오답 목록 (취약점 분석 핵심)】\n"
+        for i, w in enumerate(wrong_items[:15], 1):
+            sq = (w.get("source_question") or "")[:200]
+            sa = (w.get("source_answer") or "")[:200]
+            prompt += f"{i}. 원질문: {sq}\n   원답변: {sa}\n"
+        prompt += "\n"
+    prompt += (
+        "위 데이터를 **전부 참고**해서, 이 학생의 학습 취약점을 2~4문장으로 요약해 주세요. "
+        "구체적인 개념·유형을 언급하고, 복습 권장 방향을 한 줄 정도 포함해 주세요. 한글로만 작성하세요."
+    )
+
+    try:
+        client = _get_groq_client()
+        res = client.chat.completions.create(
+            model=_model_text(),
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.4,
+        )
+        return (res.choices[0].message.content or "").strip() or "취약점 분석을 생성하지 못했습니다."
+    except Exception as e:
+        logger.exception("generate_weakness_analysis_from_quiz failed: %s", e)
+        return "취약점 분석 생성 실패"
 
 
 def generate_parent_report(student_name: str, stats: dict) -> str:

@@ -1,12 +1,14 @@
 import pandas as pd
 import streamlit as st
 
+from ui.ui_common import format_ts_kst
 from services.analytics_service import (
     get_subject_achievement,
     get_offtopic_chat_summary,
     get_study_chat_history,
 )
 from ui.focus_ui import render_focus_section
+from ui.quiz_weakness_ui import render_quiz_weakness_section
 
 
 def render_ai_report_tab(student_id: str, student_handle: str = ""):
@@ -49,7 +51,7 @@ def render_ai_report_tab(student_id: str, student_handle: str = ""):
         st.caption(f"최근 30일 공부 관련 질문·답변 {len(study_items)}건 — 어떤 부분을 물었고, 답변을 통해 학습 부족 부분을 확인·정리할 수 있어요.")
         st.caption("💡 학습 부족 분석은 아래 과목별 성취도·AI 취약점과 함께 참고하세요.")
         for it in study_items[:15]:
-            ts = (it.get("created_at") or "")[:16].replace("T", " ")
+            ts = format_ts_kst(it.get("created_at"))
             subj = it.get("subject", "OTHER")
             q = it.get("question", "")
             a = it.get("answer", "")
@@ -95,7 +97,7 @@ def render_ai_report_tab(student_id: str, student_handle: str = ""):
         st.caption("최근 7일 동안 공부 시간 중 공부 외 질문이 없습니다.")
     else:
         for it in items:
-            ts = (it.get("created_at") or "")[:16].replace("T", " ")
+            ts = format_ts_kst(it.get("created_at"))
             cat = it.get("category") or "OTHER"
             content = it.get("content") or ""
             with st.container(border=True):
@@ -105,6 +107,8 @@ def render_ai_report_tab(student_id: str, student_handle: str = ""):
     st.markdown("---")
 
     render_focus_section(student_id, student_handle or "자녀")
+
+    render_quiz_weakness_section(student_id, student_handle or "자녀", lookback_days=90)
 
     st.markdown("---")
 

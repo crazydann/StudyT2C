@@ -2,6 +2,7 @@ import streamlit as st
 from typing import Any, Dict, List, Optional, Callable
 
 from ui.ui_errors import show_error
+from ui.ui_common import format_ts_kst
 from services.db_service import (
     list_grading_submissions,
     get_submission_items,
@@ -22,7 +23,7 @@ def _submission_title(row: Dict[str, Any]) -> str:
     fname = row.get("file_name") or row.get("filename") or row.get("name") or "제출물"
     dt = _pick_dt(row)
     if dt:
-        return f"{fname}  ·  {dt[:19].replace('T', ' ')}"
+        return f"{fname}  ·  {format_ts_kst(dt, with_seconds=True)}"
     return str(fname)
 
 

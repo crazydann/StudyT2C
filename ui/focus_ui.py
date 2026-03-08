@@ -12,17 +12,7 @@ from services.focus_events_service import (
 )
 from services.notification_settings_service import get_offtopic_recipients_realtime
 from services.email_service import send_focus_left_alert
-
-
-def _format_ts(ts: str | None) -> str:
-    if not ts:
-        return "—"
-    try:
-        if "T" in ts:
-            return ts[:16].replace("T", " ")
-        return ts[:16]
-    except Exception:
-        return str(ts)
+from ui.ui_common import format_ts_kst
 
 
 def render_focus_section(student_id: str, student_handle: str) -> None:
@@ -60,14 +50,14 @@ def render_focus_section(student_id: str, student_handle: str) -> None:
 
     c1, c2 = st.columns(2)
     with c1:
-        st.metric("오늘 첫 사용", _format_ts(usage_start))
+        st.metric("오늘 첫 사용", format_ts_kst(usage_start))
     with c2:
-        st.metric("오늘 마지막 사용", _format_ts(usage_end))
+        st.metric("오늘 마지막 사용", format_ts_kst(usage_end))
     st.caption(f"오늘 탭 이탈 횟수: **{left_tab_count}회** (다른 탭/창으로 전환한 횟수)")
 
     if idle_periods:
         st.markdown("**비집중 구간** (탭을 벗어났다가 돌아온 시간대)")
         for start, end in idle_periods[:20]:
-            st.caption(f"· {_format_ts(start)} → {_format_ts(end)}")
+            st.caption(f"· {format_ts_kst(start)} → {format_ts_kst(end)}")
     else:
         st.caption("비집중 구간이 없거나, 아직 탭에 복귀하지 않은 상태일 수 있습니다.")

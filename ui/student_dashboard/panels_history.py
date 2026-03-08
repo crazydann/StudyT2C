@@ -2,6 +2,7 @@
 import streamlit as st
 
 from services.db_service import list_grading_submissions, get_submission_items
+from ui.ui_common import format_ts_kst
 from ui.ui_errors import show_error
 
 
@@ -22,7 +23,7 @@ def render_history_panel(student_id: str, user: dict) -> None:
     id_by_label = {}
 
     for s in subs:
-        created = (s.get("created_at") or s.get("uploaded_at") or "")[:19].replace("T", " ")
+        created = format_ts_kst(s.get("created_at") or s.get("uploaded_at"), with_seconds=True)
         fh = str(s.get("file_hash", ""))[:8]
         sub_id = s.get("id")
 

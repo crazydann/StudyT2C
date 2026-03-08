@@ -44,6 +44,20 @@ def verify_login(login_id: str, password: str) -> Optional[Dict[str, Any]]:
             .data
             or []
         )
+        # handle 대소문자 불일치 시 재시도 (예: DB에 "David" 저장된 경우)
+        if not rows:
+            for alt in (login_id.capitalize(), login_id.upper()):
+                rows = (
+                    sb.table("users")
+                    .select("id, handle, role, status, detail_permission, show_practice_answer, password_hash")
+                    .eq("handle", alt)
+                    .limit(1)
+                    .execute()
+                    .data
+                    or []
+                )
+                if rows:
+                    break
         if not rows:
             return None
         u = rows[0]

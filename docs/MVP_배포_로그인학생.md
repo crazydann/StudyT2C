@@ -40,12 +40,18 @@ Streamlit Cloud에서 **studyt2c** 앱의 **Settings → Secrets** 에만:
 
 ---
 
-## 2. DB: password_hash 컬럼
+## 2. DB: password_hash + david/joshua 비밀번호
 
-Supabase **SQL Editor**에서 한 번 실행:
+Supabase **SQL Editor**에서 **한 번** 실행해 주세요.
 
 - 파일: `supabase/migrations/users_password_hash_mvp.sql`  
-- 내용: `users` 테이블에 `password_hash` 컬럼 추가.
+- 하는 일:  
+  - `users` 테이블에 `password_hash` 컬럼 추가  
+  - **david**, **joshua** 계정이 있으면 비밀번호(아이디와 동일) 해시로 갱신  
+  - 없으면 두 계정 생성 후 비밀번호 설정  
+
+이 SQL을 실행해야 **david / david**, **joshua / joshua** 로그인이 됩니다.  
+(Streamlit Cloud에 `SUPABASE_SERVICE_ROLE_KEY`가 없어도 이 SQL만 실행하면 로그인 가능)
 
 ---
 

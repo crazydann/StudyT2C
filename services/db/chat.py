@@ -25,11 +25,9 @@ def save_chat_message(
         sb = _sbw()
         payload: Dict[str, Any] = {
             "student_user_id": student_user_id,
-            "session_id": None,
             "role": role,
             "content": content,
             "created_at": created_at or _now_iso(),
-            "subject": (meta or {}).get("subject", "OTHER"),
         }
         if meta is not None:
             payload["meta"] = meta

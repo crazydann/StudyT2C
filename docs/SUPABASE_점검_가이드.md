@@ -55,7 +55,32 @@ END $$;
 SELECT 'chat_messages 스키마 수정 완료' AS result;
 ```
 
-에러 없이 실행되면 OK입니다. 일부 `DO $$ ... EXCEPTION` 구문에서 에러가 나도, 마지막 `SELECT`가 보이면 진행된 것입니다.
+에러 없이 실행되면 OK입니다.
+
+---
+
+## 2-2. chat_messages RLS 정책 (INSERT 허용)
+
+에러가 `new row violates row-level security policy` 일 때 아래 SQL을 실행하세요.
+
+Supabase 대시보드 → **SQL Editor** → **New query** → 복사 후 **Run**
+
+```sql
+-- RLS가 켜져 있어서 INSERT가 막힐 때: chat_messages INSERT/SELECT 허용
+ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow insert chat_messages" ON chat_messages;
+CREATE POLICY "Allow insert chat_messages"
+ON chat_messages FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow select chat_messages" ON chat_messages;
+CREATE POLICY "Allow select chat_messages"
+ON chat_messages FOR SELECT USING (true);
+
+SELECT 'chat_messages RLS 정책 추가 완료' AS result;
+```
+
+--- 일부 `DO $$ ... EXCEPTION` 구문에서 에러가 나도, 마지막 `SELECT`가 보이면 진행된 것입니다.
 
 ---
 

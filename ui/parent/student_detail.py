@@ -12,6 +12,11 @@ from ui.parent.data_loaders import (
     update_parent_notification_email,
 )
 from ui.parent.ai_report_tab import render_ai_report_tab
+from services.notification_settings_service import (
+    fetch_notification_settings,
+    upsert_notification_settings,
+    FREQUENCY_OPTIONS,
+)
 
 
 def render_student_detail(supabase, parent_id: str, state: dict):
@@ -68,21 +73,51 @@ def render_student_detail(supabase, parent_id: str, state: dict):
         else:
             st.warning("AI 튜터 모드 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.")
 
-    st.markdown("### 📧 알림 이메일 (공부 외 질문 시)")
+    st.markdown("### 📧 이메일 알림 설정")
     current_email = fetch_parent_notification_email(supabase, parent_id)
     notify_email = st.text_input(
-        "이메일 주소",
+        "알림 수신 이메일 주소",
         value=current_email,
         placeholder="example@email.com",
         key=f"p_notify_email_{sid}",
-        help="자녀가 공부 시간에 공부 외 질문을 하면 이 주소로 알림 메일이 발송됩니다.",
+        help="이 주소로 알림 메일이 발송됩니다. 수정 후 저장 버튼을 눌러 주세요.",
     )
-    if st.button("알림 이메일 저장", key=f"p_save_notify_{sid}"):
+    if st.button("이메일 주소 저장", key=f"p_save_notify_{sid}"):
         if update_parent_notification_email(supabase, parent_id, notify_email or ""):
-            st.success("알림 이메일이 저장되었어요.")
+            st.success("이메일 주소가 저장되었어요.")
             st.rerun()
         else:
             st.warning("저장에 실패했습니다. 잠시 후 다시 시도해 주세요.")
+
+    # 이 학생에 대한 수신 여부·항목·주기
+    st.markdown("#### 이 자녀에 대한 수신 설정")
+    settings = fetch_notification_settings(supabase, parent_id, str(sid))
+    email_enabled = st.toggle("이 학생에 대한 이메일 알림 받기", value=settings.get("email_enabled", True), key=f"p_email_on_{sid}")
+    receive_offtopic = st.checkbox("공부 외 질문 알림 (수업 중 잡담·게임 등)", value=settings.get("receive_offtopic", True), key=f"p_offtopic_{sid}")
+    receive_weekly_report = st.checkbox("주간 학습 리포트 (준비 중)", value=settings.get("receive_weekly_report", False), key=f"p_weekly_{sid}")
+    receive_daily_summary = st.checkbox("일일 요약 (준비 중)", value=settings.get("receive_daily_summary", False), key=f"p_daily_{sid}")
+    freq_labels = {"realtime": "실시간", "daily": "일 단위", "weekly": "주 단위", "monthly": "월 단위"}
+    freq_index = max(0, FREQUENCY_OPTIONS.index(settings.get("frequency", "realtime")) if settings.get("frequency") in FREQUENCY_OPTIONS else 0)
+    frequency = st.selectbox(
+        "알림 주기",
+        options=FREQUENCY_OPTIONS,
+        index=freq_index,
+        format_func=lambda x: freq_labels.get(x, x),
+        key=f"p_freq_{sid}",
+    )
+    if st.button("수신 설정 저장", key=f"p_save_settings_{sid}"):
+        if upsert_notification_settings(
+            supabase, parent_id, str(sid), "parent",
+            email_enabled=email_enabled,
+            receive_offtopic=receive_offtopic,
+            receive_weekly_report=receive_weekly_report,
+            receive_daily_summary=receive_daily_summary,
+            frequency=frequency,
+        ):
+            st.success("수신 설정이 저장되었어요.")
+            st.rerun()
+        else:
+            st.warning("수신 설정 저장에 실패했습니다.")
 
     st.divider()
 

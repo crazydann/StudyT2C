@@ -82,17 +82,38 @@ SELECT 'chat_messages RLS 정책 추가 완료' AS result;
 
 ---
 
-## 2-3. users 테이블에 notification_email 컬럼 추가 (학부모 이메일 알림용)
+## 2-3. 이메일 알림: users.notification_email + notification_settings (권장)
 
-공부 외 질문 시 학부모에게 이메일 알림을 보내려면 `users` 테이블에 `notification_email` 컬럼이 있어야 합니다.
+학부모/선생님 이메일 알림을 쓰려면 아래를 한 번에 실행하는 것을 권장합니다.  
+`supabase/migrations/notification_email_and_settings.sql` 파일 내용을 SQL Editor에 붙여 넣고 실행하면 됩니다.
 
-Supabase 대시보드 → **SQL Editor** → **New query** → 아래 SQL 실행
+- **users**: `notification_email` 컬럼 추가, 학부모 한 명에 `dannyhos@naver.com` 수동 설정(예시)
+- **notification_settings**: 학생별 수신 여부·항목(공부외/주간리포트 등)·주기(실시간/일/주/월) 저장
+
+직접 SQL만 실행하려면:
 
 ```sql
-ALTER TABLE users
-ADD COLUMN IF NOT EXISTS notification_email text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_email text;
+UPDATE users SET notification_email = 'dannyhos@naver.com'
+WHERE id = (SELECT id FROM users WHERE role = 'parent' LIMIT 1);
 
-SELECT 'users.notification_email 컬럼 추가 완료' AS result;
+CREATE TABLE IF NOT EXISTS notification_settings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id text NOT NULL,
+  student_user_id text NOT NULL,
+  role text NOT NULL CHECK (role IN ('parent', 'teacher')),
+  email_enabled boolean NOT NULL DEFAULT true,
+  receive_offtopic boolean NOT NULL DEFAULT true,
+  receive_weekly_report boolean NOT NULL DEFAULT false,
+  receive_daily_summary boolean NOT NULL DEFAULT false,
+  frequency text NOT NULL DEFAULT 'realtime' CHECK (frequency IN ('realtime', 'daily', 'weekly', 'monthly')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (user_id, student_user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_notification_settings_user_student ON notification_settings (user_id, student_user_id);
+ALTER TABLE notification_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all notification_settings" ON notification_settings FOR ALL USING (true) WITH CHECK (true);
 ```
 
 ---
@@ -108,7 +129,10 @@ SELECT 'users.notification_email 컬럼 추가 완료' AS result;
 - **공부 외 질문**: `meta.mode === "studying"` 이고 `meta.is_study === false` → 공부 외로 표기
 
 ### users
-- `id`, `handle`, `role`, `status`, `detail_permission`, `show_practice_answer`, `notification_email` (학부모 알림 수신 이메일, 선택)
+- `id`, `handle`, `role`, `status`, `detail_permission`, `show_practice_answer`, `notification_email` (학부모/선생님 알림 수신 이메일, 선택)
+
+### notification_settings (이메일 수신 설정)
+- `user_id`, `student_user_id`, `role` (parent/teacher), `email_enabled`, `receive_offtopic`, `receive_weekly_report`, `receive_daily_summary`, `frequency` (realtime/daily/weekly/monthly)
 
 ### parent_student_links
 - `parent_user_id`, `student_user_id`

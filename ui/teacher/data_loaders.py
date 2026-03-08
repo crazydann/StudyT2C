@@ -20,6 +20,35 @@ def fetch_teacher_student_ids(supabase, teacher_id: str):
         return []
 
 
+def fetch_teacher_notification_email(supabase, teacher_id: str) -> str:
+    """선생님의 알림 수신 이메일 주소 조회."""
+    try:
+        resp = (
+            supabase.table("users")
+            .select("notification_email")
+            .eq("id", teacher_id)
+            .limit(1)
+            .execute()
+        )
+        rows = resp.data or []
+        if not rows:
+            return ""
+        return (rows[0].get("notification_email") or "").strip()
+    except Exception as e:
+        show_error("알림 이메일 로드 실패", e, context="users select (notification_email)", show_trace=False)
+        return ""
+
+
+def update_teacher_notification_email(supabase, teacher_id: str, email: str) -> bool:
+    """선생님의 알림 수신 이메일 주소 저장."""
+    try:
+        supabase.table("users").update({"notification_email": (email or "").strip() or None}).eq("id", teacher_id).execute()
+        return True
+    except Exception as e:
+        show_error("알림 이메일 저장 실패", e, context="users update (notification_email)", show_trace=False)
+        return False
+
+
 def fetch_user_handles_by_ids(supabase, user_ids):
     if not user_ids:
         return {}

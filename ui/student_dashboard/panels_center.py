@@ -6,7 +6,8 @@ from services.db_service import (
     list_grading_submissions,
     get_submission_items,
 )
-from services.email_service import get_parent_emails_for_student, send_offtopic_alert
+from services.email_service import send_offtopic_alert_to_recipients
+from services.notification_settings_service import get_offtopic_recipients_realtime
 from ui.ui_errors import show_error
 
 OFFTOPIC_EMAIL_COOLDOWN_SEC = 3600
@@ -47,7 +48,7 @@ def _classify_study_relevance(text: str, studying: bool) -> tuple[bool, str]:
 
 
 def _maybe_send_offtopic_email(student_id: str, user: dict, offtopic_content: str) -> None:
-    """공부 외 질문 저장 후 학부모에게 이메일 알림 (1시간 쿨다운)."""
+    """공부 외 질문 저장 후 수신 설정이 실시간인 학부모/선생님에게 역할별 템플릿으로 이메일 알림 (1시간 쿨다운)."""
     import time
     key = "offtopic_email_last_sent"
     if key not in st.session_state:
@@ -55,11 +56,11 @@ def _maybe_send_offtopic_email(student_id: str, user: dict, offtopic_content: st
     last = st.session_state[key].get(student_id) or 0
     if time.time() - last < OFFTOPIC_EMAIL_COOLDOWN_SEC:
         return
-    to_emails = get_parent_emails_for_student(student_id)
-    if not to_emails:
+    recipients = get_offtopic_recipients_realtime(student_id)
+    if not recipients:
         return
     student_handle = user.get("handle") or "학생"
-    if send_offtopic_alert(to_emails, student_handle, offtopic_content):
+    if send_offtopic_alert_to_recipients(recipients, student_handle, offtopic_content):
         st.session_state[key][student_id] = time.time()
 
 

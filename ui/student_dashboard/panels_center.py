@@ -167,6 +167,7 @@ def render_center_panel(user: dict, student_id: str, state: dict):
                 "user",
                 u_input,
                 meta=meta,
+                answer=ans,
             )
         except Exception as e:
             if st.session_state.get("dev_mode", False):

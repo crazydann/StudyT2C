@@ -805,6 +805,7 @@ def get_offtopic_chat_summary(student_id: str, lookback_days: int = 7) -> Dict[s
     - 최근 예시 몇 개를 함께 반환.
     - service role 사용 → RLS policy 없이 조회 가능.
     """
+    import json
     sb = supabase_service if supabase_service is not None else supabase
     since = _iso(_utc_now() - timedelta(days=lookback_days))
     try:
@@ -822,11 +823,22 @@ def get_offtopic_chat_summary(student_id: str, lookback_days: int = 7) -> Dict[s
     by_cat = Counter()
 
     for r in rows:
-        meta = r.get("meta") or {}
+        raw_meta = r.get("meta")
+        if raw_meta is None:
+            continue
+        if isinstance(raw_meta, str):
+            try:
+                meta = json.loads(raw_meta)
+            except Exception:
+                meta = {}
+        else:
+            meta = raw_meta or {}
         mode = meta.get("mode")
         is_study = meta.get("is_study")
         cat = meta.get("offtopic_category") or "OTHER"
-        if mode == "studying" and is_study is False:
+        # studying 모드이면서 공부 외 질문 (False, 0, "false" 문자열 모두 비공부로 처리)
+        is_offtopic = is_study is False or is_study == False or str(is_study).lower() == "false"
+        if mode == "studying" and is_offtopic:
             by_cat[cat] += 1
             items.append(
                 {
@@ -843,5 +855,65 @@ def get_offtopic_chat_summary(student_id: str, lookback_days: int = 7) -> Dict[s
         "lookback_days": lookback_days,
         "total": total,
         "by_category": dict(by_cat),
+        "items": items,
+    }
+
+
+# ---------------------------
+# 공부 관련 질문/답변 이력 (학부모 탭용)
+# ---------------------------
+def get_study_chat_history(student_id: str, lookback_days: int = 30, limit: int = 50) -> Dict[str, Any]:
+    """
+    meta.is_study가 True인 chat_messages만 조회.
+    질문·답변 쌍으로 반환 (공부 관련 이력 분석용).
+    """
+    import json
+    sb = supabase_service if supabase_service is not None else supabase
+    since = _iso(_utc_now() - timedelta(days=lookback_days))
+    try:
+        rows = _execute_with_retry(
+            lambda: sb.table("chat_messages")
+            .select("created_at,content,meta,question_text,answer_text")
+            .eq("student_user_id", student_id)
+            .gte("created_at", since)
+            .order("created_at", desc=True)
+            .limit(limit * 2)
+            .execute()
+        ).data or []
+    except Exception:
+        rows = []
+
+    items: List[Dict[str, Any]] = []
+    for r in rows:
+        raw_meta = r.get("meta")
+        if raw_meta is None:
+            continue
+        if isinstance(raw_meta, str):
+            try:
+                meta = json.loads(raw_meta)
+            except Exception:
+                meta = {}
+        else:
+            meta = raw_meta or {}
+        is_study = meta.get("is_study")
+        if is_study is False or is_study == False or str(is_study).lower() == "false":
+            continue
+        if is_study is not True and is_study != True and str(is_study).lower() != "true":
+            continue
+        question = r.get("question_text") or r.get("content") or ""
+        answer = r.get("answer_text") or ""
+        if not question.strip():
+            continue
+        items.append({
+            "created_at": r.get("created_at"),
+            "question": question[:200],
+            "answer": (answer or "")[:500],
+            "subject": meta.get("subject", "OTHER"),
+        })
+
+    items = sorted(items, key=lambda x: x.get("created_at") or "", reverse=True)[:limit]
+    return {
+        "lookback_days": lookback_days,
+        "total": len(items),
         "items": items,
     }

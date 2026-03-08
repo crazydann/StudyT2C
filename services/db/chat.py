@@ -12,14 +12,12 @@ def save_chat_message(
     content: str,
     created_at: Optional[str] = None,
     meta: Optional[Dict[str, Any]] = None,
+    answer: Optional[str] = None,
 ) -> bool:
     """
-    chat_messages 테이블 가정:
-      - student_user_id
-      - role
-      - content
-      - created_at
-      - meta (optional jsonb)
+    chat_messages 테이블에 질문·답변 한 행으로 저장.
+    - content: 사용자 질문
+    - answer: AI 답변 (있으면 question_text/answer_text 컬럼에도 저장)
     """
     try:
         sb = _sbw()
@@ -31,6 +29,9 @@ def save_chat_message(
         }
         if meta is not None:
             payload["meta"] = meta
+        if answer is not None:
+            payload["question_text"] = content
+            payload["answer_text"] = answer
         sb.table("chat_messages").insert(payload).execute()
         return True
     except Exception as e:

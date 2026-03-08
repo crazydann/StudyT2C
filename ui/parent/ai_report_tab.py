@@ -1,7 +1,11 @@
 import pandas as pd
 import streamlit as st
 
-from services.analytics_service import get_subject_achievement, get_offtopic_chat_summary
+from services.analytics_service import (
+    get_subject_achievement,
+    get_offtopic_chat_summary,
+    get_study_chat_history,
+)
 
 
 def render_ai_report_tab(student_id: str):
@@ -30,7 +34,34 @@ def render_ai_report_tab(student_id: str):
         cr_str = f"{int(avg_cr * 100)}%" if isinstance(avg_cr, (int, float)) else "N/A"
         st.metric("평균 정답률", cr_str)
 
-    # 공부 시간 중 비공부 질문 모니터링
+    # 1) 공부 관련 질문/답변 이력
+    st.markdown("#### 📚 공부 관련 질문·답변 이력")
+    try:
+        study = get_study_chat_history(student_id, lookback_days=30, limit=30)
+        study_items = study.get("items", []) or []
+    except Exception:
+        study_items = []
+
+    if not study_items:
+        st.caption("최근 30일 공부 관련 질문 이력이 없습니다.")
+    else:
+        st.caption(f"최근 30일 공부 관련 질문·답변 {len(study_items)}건 — 어떤 부분을 물었고, 답변을 통해 학습 부족 부분을 확인·정리할 수 있어요.")
+        st.caption("💡 학습 부족 분석은 아래 과목별 성취도·AI 취약점과 함께 참고하세요.")
+        for it in study_items[:15]:
+            ts = (it.get("created_at") or "")[:16].replace("T", " ")
+            subj = it.get("subject", "OTHER")
+            q = it.get("question", "")
+            a = it.get("answer", "")
+            with st.expander(f"{ts} · {subj} · {q[:40]}..." if len(q) > 40 else f"{ts} · {subj} · {q}"):
+                st.markdown("**질문**")
+                st.write(q)
+                if a:
+                    st.markdown("**답변**")
+                    st.write(a[:400] + ("..." if len(a) > 400 else ""))
+
+    st.markdown("---")
+
+    # 2) 공부 외 질문 모니터링
     try:
         off = get_offtopic_chat_summary(student_id, lookback_days=7)
     except Exception:
@@ -39,7 +70,6 @@ def render_ai_report_tab(student_id: str):
     total_off = off.get("total", 0)
     by_cat = off.get("by_category", {}) or {}
 
-    # 주의/경고 배지 (5건 이상 주의, 10건 이상 경고)
     badge = ""
     if total_off >= 10:
         badge = " 🔴 경고"
@@ -51,11 +81,25 @@ def render_ai_report_tab(student_id: str):
             st.markdown("#### 🧠 공부 시간 AI 튜터 사용")
             st.caption("최근 7일 동안 공부 시간 중 공부 외 질문 없이 잘 활용하고 있어요.")
         else:
-            st.markdown(f"#### ⚠️ 공부 외 질문 모니터링{badge}")
+            st.markdown(f"#### ⚠️ 공부 외 질문{badge}")
             parts = [f"{k}: {v}건" for k, v in by_cat.items()]
-            st.write(f"최근 7일 공부 시간 중 공부 외 질문: **{total_off}건**")
+            st.write(f"최근 7일 공부 시간 중 공부 외 질문: **{total_off}건** (공부 외 질문으로 정리·표기)")
             if parts:
                 st.caption("유형별 분포: " + ", ".join(parts))
+
+    # 공부 외 질문 히스토리 (최근 10개)
+    items = (off.get("items") or [])[:10]
+    st.markdown("##### 공부 외 질문 히스토리 (최근)")
+    if not items:
+        st.caption("최근 7일 동안 공부 시간 중 공부 외 질문이 없습니다.")
+    else:
+        for it in items:
+            ts = (it.get("created_at") or "")[:16].replace("T", " ")
+            cat = it.get("category") or "OTHER"
+            content = it.get("content") or ""
+            with st.container(border=True):
+                st.caption(f"{ts} · 유형: {cat}")
+                st.write(content)
 
     st.markdown("---")
 
@@ -78,18 +122,3 @@ def render_ai_report_tab(student_id: str):
     st.markdown("#### 과목별 성취도 비교")
     chart_df = df[["label", "score"]].set_index("label")
     st.bar_chart(chart_df)
-
-    # 공부 외 질문 히스토리 (최근 10개)
-    items = (off.get("items") or [])[:10]
-    st.markdown("#### 공부 시간 중 공부 외 질문 히스토리 (최근)")
-    if not items:
-        st.caption("최근 7일 동안 공부 시간 중 공부 외 질문이 없습니다.")
-    else:
-        for it in items:
-            ts = (it.get("created_at") or "")[:16].replace("T", " ")
-            cat = it.get("category") or "OTHER"
-            content = it.get("content") or ""
-            with st.container(border=True):
-                st.caption(f"{ts} · 유형: {cat}")
-                st.write(content)
-

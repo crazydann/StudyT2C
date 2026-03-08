@@ -147,36 +147,39 @@ def render_center_panel(user: dict, student_id: str, state: dict):
     if not isinstance(state.get("messages"), list):
         state["messages"] = []
 
-    for msg in state.get("messages", []):
-        with st.chat_message(msg.get("role", "assistant")):
-            st.markdown(msg.get("content", ""))
+    # 대화창: 고정 높이 + 스크롤 (질문/답변은 이 안에서만 스크롤), 입력창은 항상 아래에
+    try:
+        chat_height = 420
+        with st.container(height=chat_height):
+            for msg in state.get("messages", []):
+                with st.chat_message(msg.get("role", "assistant")):
+                    st.markdown(msg.get("content", ""))
+                    if msg.get("role") == "assistant" and msg.get("_subject"):
+                        st.caption(f"분류된 과목: {msg.get('_subject')}")
+    except TypeError:
+        for msg in state.get("messages", []):
+            with st.chat_message(msg.get("role", "assistant")):
+                st.markdown(msg.get("content", ""))
+                if msg.get("role") == "assistant" and msg.get("_subject"):
+                    st.caption(f"분류된 과목: {msg.get('_subject')}")
 
+    # 입력창은 대화 영역 바로 아래 고정 (ChatGPT처럼)
     u_input = st.chat_input("질문하세요")
     if u_input:
         is_study, category = _classify_study_relevance(u_input, studying)
-
-        state["messages"].append({"role": "user", "content": u_input})
-        with st.chat_message("user"):
-            st.markdown(u_input)
-
-        with st.chat_message("assistant"):
-            if studying and not is_study:
-                ans = "지금은 공부 시간이에요. 숙제나 개념 관련 질문을 해주세요. 😊"
+        if studying and not is_study:
+            ans = "지금은 공부 시간이에요. 숙제나 개념 관련 질문을 해주세요. 😊"
+            subj_class = {"subject": "OTHER", "confidence": 0.0}
+        else:
+            try:
+                subj_class = classify_subject(u_input)
+                ans = chat_with_tutor(u_input, mode=user.get("status", "break"))
+            except Exception as e:
+                show_error("AI 튜터 응답 실패", e, context="classify_subject/chat_with_tutor")
                 subj_class = {"subject": "OTHER", "confidence": 0.0}
-            else:
-                with st.spinner("생각 중..."):
-                    try:
-                        subj_class = classify_subject(u_input)
-                        ans = chat_with_tutor(u_input, mode=user.get("status", "break"))
-                    except Exception as e:
-                        show_error("AI 튜터 응답 실패", e, context="classify_subject/chat_with_tutor")
-                        subj_class = {"subject": "OTHER", "confidence": 0.0}
-                        ans = "AI 튜터 연결 오류"
-
-            st.markdown(ans)
-            st.caption(f"분류된 과목: {subj_class.get('subject', 'OTHER')}")
-
-        state["messages"].append({"role": "assistant", "content": ans})
+                ans = "AI 튜터 연결 오류"
+        state["messages"].append({"role": "user", "content": u_input})
+        state["messages"].append({"role": "assistant", "content": ans, "_subject": subj_class.get("subject", "OTHER")})
         try:
             meta = {
                 "mode": user.get("status", "break"),
@@ -184,19 +187,14 @@ def render_center_panel(user: dict, student_id: str, state: dict):
                 "offtopic_category": category,
                 "subject": subj_class.get("subject", "OTHER"),
             }
-            save_chat_message(
-                student_id,
-                "user",
-                u_input,
-                meta=meta,
-                answer=ans,
-            )
+            save_chat_message(student_id, "user", u_input, meta=meta, answer=ans)
             if studying and not is_study:
                 _maybe_send_offtopic_email(student_id, user, u_input)
         except Exception as e:
             if st.session_state.get("dev_mode", False):
                 show_error("채팅 이력 저장 실패", e, context="save_chat_message", show_trace=False)
                 st.code(str(e), language="text")
+        st.rerun()
 
     st.divider()
     _render_recent_grading_history(student_id, user)

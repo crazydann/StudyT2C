@@ -30,22 +30,30 @@ def _apply_student_layout_css():
     st.markdown(
         """
         <style>
-        /* 로그인학생 전용: 전체 폭 사용, 헤더~본문 사이 빈 공간 제거 */
+        /* 로그인학생 전용: 헤더~본문 사이 공간 완전 축소 */
+        div[data-testid="stAppViewContainer"] {
+            padding-top: 0 !important;
+        }
         div[data-testid="stAppViewContainer"] div.block-container {
             max-width: 100%;
             padding-left: 1.5rem;
             padding-right: 1.5rem;
-            padding-top: 0.25rem;
+            padding-top: 0 !important;
             padding-bottom: 1rem;
             min-height: 0;
         }
-        /* 헤더와 질의개념복습/AI튜터/문제채점기 사이 여백 제거 */
         div[data-testid="stAppViewContainer"] div.block-container > div {
             margin-bottom: 0 !important;
             margin-top: 0 !important;
         }
         div[data-testid="stAppViewContainer"] div.block-container hr {
-            margin: 0.15rem 0 !important;
+            margin: 0.1rem 0 !important;
+        }
+        /* iframe/컴포넌트로 인한 빈 칸 제거 (focus 트래커 등) */
+        div[data-testid="stAppViewContainer"] iframe[title="streamlitComponent"] {
+            height: 0 !important;
+            min-height: 0 !important;
+            display: block !important;
         }
         section[data-testid="stSidebar"] { display: none; }
         header[data-testid="stHeader"] { background: transparent; }
@@ -136,15 +144,7 @@ def render_mvp_student_view(supabase, user: dict):
             st.rerun()
     st.divider()
 
-    try:
-        supabase_url = config.get_supabase_url()
-        anon_key = config.get_supabase_anon_key()
-        if supabase_url and anon_key:
-            render_focus_tracker(str(student_id), supabase_url, anon_key)
-    except Exception:
-        pass
-
-    # 2. 3열: 좌 | 중(AI 튜터, 가장 넓고 길게) | 우 — 브라우저 크기에 따라 CSS로 비율/반응형 적용
+    # 2. 3열: 좌 | 중(AI 튜터, 가장 넓고 길게) | 우 — 헤더 바로 아래 배치
     col_left, col_center, col_right = st.columns([1, 5, 1])
 
     with col_left:
@@ -159,6 +159,14 @@ def render_mvp_student_view(supabase, user: dict):
         render_grading_panel(user, str(student_id), state, _make_image_renderer())
         st.markdown("---")
         _render_quiz_weakness_analysis(str(student_id), student_handle)
+
+    try:
+        supabase_url = config.get_supabase_url()
+        anon_key = config.get_supabase_anon_key()
+        if supabase_url and anon_key:
+            render_focus_tracker(str(student_id), supabase_url, anon_key)
+    except Exception:
+        pass
 
 
 def _render_quiz_from_qa(student_id: str, student_handle: str = "학생") -> None:

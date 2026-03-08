@@ -18,7 +18,7 @@ from services.notification_settings_service import (
     FREQUENCY_OPTIONS,
     get_offtopic_recipients_realtime,
 )
-from services.email_service import send_focus_left_alert
+from services.email_service import send_focus_left_alert_with_reason
 from services.focus_events_service import record_focus_alert_sent
 
 
@@ -128,14 +128,12 @@ def render_student_detail(supabase, parent_id: str, state: dict):
     )
     if st.button("📤 탭 이탈 알림 수동 발송", key=f"p_focus_manual_send_{sid}"):
         recipients = get_offtopic_recipients_realtime(str(sid))
-        if not recipients:
-            st.warning("수신자가 없어요. 이메일 알림을 켜고, 알림 주기를 **실시간**으로 두고, 위에서 이메일 주소를 저장한 뒤 다시 시도해 주세요.")
+        ok, msg = send_focus_left_alert_with_reason(recipients, shandle)
+        if ok:
+            record_focus_alert_sent(str(sid))
+            st.success(msg)
         else:
-            if send_focus_left_alert(recipients, shandle):
-                record_focus_alert_sent(str(sid))
-                st.success(f"탭 이탈 알림을 {len(recipients)}명에게 발송했어요.")
-            else:
-                st.error("발송에 실패했어요. RESEND_API_KEY와 수신 이메일 주소를 확인해 주세요.")
+            st.error(msg)
 
     st.divider()
 

@@ -15,10 +15,24 @@ from services.focus_events_service import (
     get_focus_alert_cooldown_minutes,
 )
 from services.notification_settings_service import get_offtopic_recipients_realtime
-from services.email_service import send_focus_left_alert
+from services.email_service import send_focus_left_alert, send_focus_left_alert_with_reason
 from ui.ui_common import format_ts_kst
 
 KST = timezone(timedelta(hours=9))
+
+
+def _format_time_only(ts: str) -> str:
+    """그래프 라벨용 시간만 (HH:MM)."""
+    try:
+        s = (ts or "").replace("Z", "+00:00")
+        if "T" not in s and " " in s:
+            s = s.replace(" ", "T", 1) + "+00:00"
+        dt = datetime.fromisoformat(s)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(KST).strftime("%H:%M")
+    except Exception:
+        return "—"
 
 
 def _idle_duration_minutes(start_ts: str, end_ts: str) -> float:
@@ -64,14 +78,12 @@ def render_focus_section(student_id: str, student_handle: str) -> None:
         "**주기(일/주/월)** 는 ‘실시간 알림 수신자’ 선정에만 쓰이며, 예약 발송(크론)은 없습니다."
     )
     if st.button("📤 탭 이탈 알림 수동 발송", key=f"focus_manual_send_{student_id}"):
-        if not recipients:
-            st.warning("수신자가 없어요. 이 학생에 대해 이메일 알림 ON, 알림 주기 **실시간**, 수신 이메일 저장 후 다시 시도해 주세요.")
+        ok, msg = send_focus_left_alert_with_reason(recipients, student_handle)
+        if ok:
+            record_focus_alert_sent(student_id)
+            st.success(msg)
         else:
-            if send_focus_left_alert(recipients, student_handle):
-                record_focus_alert_sent(student_id)
-                st.success(f"탭 이탈 알림을 {len(recipients)}명에게 발송했어요.")
-            else:
-                st.error("발송 실패. RESEND_API_KEY와 수신 이메일 주소를 확인해 주세요.")
+            st.error(msg)
     reasons = []
     if not recent_left:
         reasons.append("최근 5분 이내 탭 이탈 없음")
@@ -102,21 +114,26 @@ def render_focus_section(student_id: str, student_handle: str) -> None:
     with c3:
         st.metric("탭 이탈 횟수", f"{left_tab_count}회")
 
-    # ----- 비집중 구간: 표 + 그래프 -----
-    st.markdown("**🕐 비집중 구간** (나간 시각 → 돌아온 시각)")
+    # ----- 비집중 구간: 표 + 그래프 (학부모가 한눈에 이해할 수 있게) -----
+    st.markdown("**🕐 비집중 구간** (탭을 벗어난 시각 → 다시 돌아온 시각)")
     if not idle_periods:
         st.caption("비집중 구간이 없거나, 아직 탭에 복귀하지 않은 상태일 수 있습니다.")
     else:
         rows = []
         for i, (start_ts, end_ts) in enumerate(idle_periods[:50], 1):
             dur = _idle_duration_minutes(start_ts, end_ts)
+            start_str = format_ts_kst(start_ts)
+            end_str = format_ts_kst(end_ts)
+            chart_label = f"{_format_time_only(start_ts)}→{_format_time_only(end_ts)}"
             rows.append({
-                "번호": i,
-                "나간 시각": format_ts_kst(start_ts),
-                "돌아온 시각": format_ts_kst(end_ts),
+                "구간(나간→돌아온)": chart_label,
+                "나간 시각": start_str,
+                "돌아온 시각": end_str,
                 "비집중(분)": round(dur, 1),
             })
         df = pd.DataFrame(rows)
-        st.dataframe(df, use_container_width=True, hide_index=True)
-        chart_df = df[["번호", "비집중(분)"]].set_index("번호")
+        st.dataframe(df[["나간 시각", "돌아온 시각", "비집중(분)"]], use_container_width=True, hide_index=True)
+
+        st.caption("**그래프**: 가로 = **비집중 구간**(나간 시각→돌아온 시각), 세로 = **몇 분 동안** 탭을 벗어났는지")
+        chart_df = df[["구간(나간→돌아온)", "비집중(분)"]].set_index("구간(나간→돌아온)")
         st.bar_chart(chart_df)

@@ -126,12 +126,13 @@ def send_focus_left_alert(
     student_handle: str,
     subject_prefix: str = "[StudyT2C]",
 ) -> bool:
-    """탭 이탈 시 학부모/선생님에게 즉시 알림 이메일 발송."""
+    """탭 이탈 시 학부모/선생님에게 즉시 알림 이메일 발송. 실제로 1통이라도 발송되면 True."""
     if not recipients:
         return False
     api_key = _get_resend_api_key()
     if not api_key:
         return False
+    sent_count = 0
     try:
         import resend
         resend.api_key = api_key
@@ -149,11 +150,30 @@ def send_focus_left_alert(
                     "subject": subject,
                     "html": html,
                 })
+                sent_count += 1
             except Exception:
                 pass
-        return True
+        return sent_count > 0
     except Exception:
         return False
+
+
+def send_focus_left_alert_with_reason(
+    recipients: List[Dict[str, Any]],
+    student_handle: str,
+) -> tuple[bool, str]:
+    """
+    탭 이탈 알림 발송 후 (성공 여부, 사용자에게 보여줄 메시지) 반환.
+    수동 발송 버튼에서 발송 결과·도착 예상 시간 안내용.
+    """
+    if not recipients:
+        return False, "수신자가 없습니다. 이메일 알림 ON, 주기 실시간, 이메일 주소 저장 후 다시 시도해 주세요."
+    if not _get_resend_api_key():
+        return False, "발송 설정(RESEND_API_KEY)이 없어 메일을 보낼 수 없습니다. 관리자에게 문의해 주세요."
+    ok = send_focus_left_alert(recipients, student_handle)
+    if ok:
+        return True, f"{len(recipients)}명에게 발송했습니다. 도착까지 보통 **10초~1분** 걸립니다. 스팸함도 확인해 주세요."
+    return False, "Resend API 발송에 실패했습니다. 수신 이메일 주소와 API 키를 확인해 주세요."
 
 
 def get_parent_emails_for_student(student_id: str) -> List[str]:

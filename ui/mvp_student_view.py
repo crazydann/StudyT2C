@@ -30,13 +30,22 @@ def _apply_student_layout_css():
     st.markdown(
         """
         <style>
-        /* 로그인학생 전용: 전체 폭 사용 */
+        /* 로그인학생 전용: 전체 폭 사용, 헤더~본문 사이 여백 최소화 */
         div[data-testid="stAppViewContainer"] div.block-container {
             max-width: 100%;
             padding-left: 1.5rem;
             padding-right: 1.5rem;
-            padding-top: 0.75rem;
-            min-height: 90vh;
+            padding-top: 0.35rem;
+            padding-bottom: 1rem;
+            min-height: 0;
+        }
+        /* 헤더와 질의개념복습/AI튜터/문제채점기 사이 블록 간격 축소 */
+        div[data-testid="stAppViewContainer"] div.block-container > div {
+            margin-bottom: 0.2rem;
+            margin-top: 0.1rem;
+        }
+        div[data-testid="stAppViewContainer"] div.block-container hr {
+            margin: 0.35rem 0;
         }
         section[data-testid="stSidebar"] { display: none; }
         header[data-testid="stHeader"] { background: transparent; }
@@ -111,11 +120,13 @@ def render_mvp_student_view(supabase, user: dict):
 
     _apply_student_layout_css()
 
-    # 1. 상단: 헤더 바 (학생 이름 | 로그아웃) — 스케치의 "입력창" 영역
+    # 1. 상단: 헤더 한 줄 (StudyT2C · 학생 이름 | 로그아웃), 여백 최소
     header_left, header_right = st.columns([4, 1])
     with header_left:
         st.markdown(
-            f'<div style="font-size:1.1rem; font-weight:600;">👤 {student_handle}</div>',
+            f'<div style="font-size:1rem; font-weight:600; line-height:1.4;">'
+            f'<span style="color:#64748b; font-weight:500;">StudyT2C</span> · 👤 {student_handle}'
+            f'</div>',
             unsafe_allow_html=True,
         )
     with header_right:

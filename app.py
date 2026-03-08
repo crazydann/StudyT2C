@@ -322,7 +322,6 @@ def main():
         if not st.session_state.get("mvp_user"):
             render_login_page()
             return
-        st.markdown("<div style='margin-bottom:0.25rem;'><span style='font-size:0.95rem; color:#64748b;'>StudyT2C</span></div>", unsafe_allow_html=True)
         render_mvp_student_view(supabase, st.session_state["mvp_user"])
         return
 

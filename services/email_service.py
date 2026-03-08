@@ -104,6 +104,58 @@ def send_offtopic_alert(
     return send_offtopic_alert_to_recipients(recipients, student_handle, offtopic_content, subject_prefix)
 
 
+def _render_focus_left_html(role: str, student_handle: str) -> str:
+    """탭 이탈 알림 HTML (학부모/선생 공통 문구만 약간 다르게)."""
+    if role == "teacher":
+        return f"""
+    <p>안녕하세요, 선생님. StudyT2C입니다.</p>
+    <p>학생 <strong>{student_handle}</strong> 님이 학습 화면 탭을 벗어났습니다.</p>
+    <p>다른 탭이나 창을 열었을 수 있습니다. 학생별 AI 분석 화면에서 <strong>집중 현황</strong>을 확인하실 수 있습니다.</p>
+    <p>— StudyT2C</p>
+    """
+    return f"""
+    <p>안녕하세요, 학부모님. StudyT2C입니다.</p>
+    <p>자녀 <strong>{student_handle}</strong> 님이 학습 화면 탭을 벗어났습니다.</p>
+    <p>다른 탭(예: 유튜브, 게임)이나 창을 열었을 수 있습니다. 학부모 화면의 <strong>AI 리포트 → 집중 현황</strong>에서 확인하실 수 있습니다.</p>
+    <p>— StudyT2C</p>
+    """
+
+
+def send_focus_left_alert(
+    recipients: List[Dict[str, Any]],
+    student_handle: str,
+    subject_prefix: str = "[StudyT2C]",
+) -> bool:
+    """탭 이탈 시 학부모/선생님에게 즉시 알림 이메일 발송."""
+    if not recipients:
+        return False
+    api_key = _get_resend_api_key()
+    if not api_key:
+        return False
+    try:
+        import resend
+        resend.api_key = api_key
+        subject = f"{subject_prefix} 학습 화면 탭을 벗어났어요"
+        for r in recipients:
+            to_addr = (r.get("email") or "").strip()
+            if not to_addr or "@" not in to_addr:
+                continue
+            role = (r.get("role") or "parent").lower()
+            html = _render_focus_left_html(role, student_handle)
+            try:
+                resend.Emails.send({
+                    "from": "StudyT2C <onboarding@resend.dev>",
+                    "to": [to_addr],
+                    "subject": subject,
+                    "html": html,
+                })
+            except Exception:
+                pass
+        return True
+    except Exception:
+        return False
+
+
 def get_parent_emails_for_student(student_id: str) -> List[str]:
     """
     (하위 호환) 해당 학생과 연결된 학부모의 알림 이메일 목록만 반환.

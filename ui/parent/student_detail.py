@@ -123,7 +123,7 @@ def render_student_detail(supabase, parent_id: str, state: dict):
 
     t1, t2, t3, t4 = st.tabs(["📊 AI 리포트", "🧾 상담 리포트", "📦 숙제 제출", "📌 Shared Summary"])
     with t1:
-        render_ai_report_tab(str(sid))
+        render_ai_report_tab(str(sid), shandle)
     with t2:
         render_consult_tab(supabase, str(sid))
     with t3:

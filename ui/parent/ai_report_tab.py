@@ -6,9 +6,10 @@ from services.analytics_service import (
     get_offtopic_chat_summary,
     get_study_chat_history,
 )
+from ui.focus_ui import render_focus_section
 
 
-def render_ai_report_tab(student_id: str):
+def render_ai_report_tab(student_id: str, student_handle: str = ""):
     st.subheader("📊 AI 학습 리포트")
 
     try:
@@ -100,6 +101,10 @@ def render_ai_report_tab(student_id: str):
             with st.container(border=True):
                 st.caption(f"{ts} · 유형: {cat}")
                 st.write(content)
+
+    st.markdown("---")
+
+    render_focus_section(student_id, student_handle or "자녀")
 
     st.markdown("---")
 

@@ -118,6 +118,17 @@ CREATE POLICY "Allow all notification_settings" ON notification_settings FOR ALL
 
 ---
 
+## 2-4. 집중 현황(탭 이탈 감지): focus_events
+
+학생이 학습 탭을 벗어났는지 감지하고, 학부모/선생님에게 알림을 보내려면 `focus_events` 테이블이 필요합니다.
+
+Supabase **SQL Editor**에서 `supabase/migrations/focus_events.sql` 파일 내용을 실행하세요.
+
+- **focus_events**: `student_user_id`, `event_type` (left_tab | returned_tab | tab_closed), `created_at`
+- **focus_alert_sent**: 탭 이탈 알람 이메일 쿨다운(같은 학생 15분에 1회) 기록
+
+---
+
 ## 3단계: 테이블별 코드 기대 스키마 (참고용)
 
 코드가 사용하는 테이블과 기대하는 컬럼입니다.
@@ -133,6 +144,12 @@ CREATE POLICY "Allow all notification_settings" ON notification_settings FOR ALL
 
 ### notification_settings (이메일 수신 설정)
 - `user_id`, `student_user_id`, `role` (parent/teacher), `email_enabled`, `receive_offtopic`, `receive_weekly_report`, `receive_daily_summary`, `frequency` (realtime/daily/weekly/monthly)
+
+### focus_events (집중 현황)
+- `student_user_id`, `event_type` (left_tab | returned_tab | tab_closed), `created_at`
+
+### focus_alert_sent (탭 이탈 알람 쿨다운)
+- `student_user_id` (PK), `last_sent_at`
 
 ### parent_student_links
 - `parent_user_id`, `student_user_id`

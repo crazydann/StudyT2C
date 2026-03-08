@@ -88,7 +88,7 @@ def render_student_detail(supabase, teacher_id: str, state: dict, handle_map: di
 
     t1, t2, t3, t4 = st.tabs(["🧠 AI 분석", "🧾 상담 리포트", "📦 숙제 제출", "📌 Shared Summary"])
     with t1:
-        render_teacher_ai_report_tab(str(student_id))
+        render_teacher_ai_report_tab(str(student_id), student_handle)
     with t2:
         render_consult_tab(supabase, teacher_id, str(student_id))
     with t3:

@@ -147,9 +147,9 @@ def render_center_panel(user: dict, student_id: str, state: dict):
 
     welcome = "안녕하세요! Focus-Super-AI 학습 도우미예요. 공부하다 궁금한 점을 물어보세요!"
 
-    # 대화창: 고정 높이 + 스크롤, 메시지 없을 땐 환영 메시지 1개 표시
+    # 대화창: 높이는 CSS에서 브라우저 크기별로 조정(min(55vh,520px) 등)
     try:
-        chat_height = 720
+        chat_height = 520
         with st.container(height=chat_height):
             if not state.get("messages"):
                 with st.chat_message("assistant"):

@@ -28,19 +28,20 @@ def _make_image_renderer():
 
 
 def _apply_student_layout_css():
-    """로그인학생 화면: 전체 화면, AI 튜터가 가장 크게, 뷰포트 비율·반응형(태블릿/휴대폰)."""
+    """로그인학생: 헤더–본문 공백 제거(크롬 포함) + 브라우저 사이즈에 따라 자동 변경."""
     st.markdown(
         """
         <style>
-        /* 로그인학생 전용: 헤더~본문 사이 공간 완전 축소 */
-        div[data-testid="stAppViewContainer"] {
+        /* 헤더–본문 공백 제거: 모든 상단 여백 제거 (크롬·데스크톱 동일 적용) */
+        section[data-testid="stAppViewContainer"],
+        section[data-testid="stAppViewContainer"] > div,
+        div[data-testid="stAppViewContainer"] div.block-container {
             padding-top: 0 !important;
+            max-width: 100%;
         }
         div[data-testid="stAppViewContainer"] div.block-container {
-            max-width: 100%;
             padding-left: 1.5rem;
             padding-right: 1.5rem;
-            padding-top: 0 !important;
             padding-bottom: 1rem;
             min-height: 0;
         }
@@ -48,10 +49,13 @@ def _apply_student_layout_css():
             margin-bottom: 0 !important;
             margin-top: 0 !important;
         }
+        /* 헤더 바로 아래 본문 끌어올리기 (크롬에서 남는 여백 제거) */
+        div[data-testid="stAppViewContainer"] div.block-container > div:nth-child(n+2) {
+            margin-top: 0 !important;
+        }
         div[data-testid="stAppViewContainer"] div.block-container hr {
             margin: 0.1rem 0 !important;
         }
-        /* iframe/컴포넌트로 인한 빈 칸 제거 (focus 트래커 등) */
         div[data-testid="stAppViewContainer"] iframe[title="streamlitComponent"] {
             height: 0 !important;
             min-height: 0 !important;
@@ -60,27 +64,25 @@ def _apply_student_layout_css():
         section[data-testid="stSidebar"] { display: none; }
         header[data-testid="stHeader"] { background: transparent; }
 
-        /* AI 튜터 대화창이 가장 큰 비율: 가운데 열(2번째) 내 스크롤 영역을 뷰포트 비율로 */
-        div[data-testid="stHorizontalBlock"] > div:nth-child(2) div[style*="overflow"] {
-            height: 65vh !important;
-            min-height: 380px !important;
-            max-height: 85vh;
-        }
-        /* 가운데 열 자체도 최소 높이 확보 */
+        /* AI 튜터 대화창: 브라우저 크기에 따라 자동 변경 (고정 70vh 제거로 크롬 공백 원인 제거) */
         div[data-testid="stHorizontalBlock"] > div:nth-child(2) {
-            min-height: 70vh;
+            min-height: 0;
+        }
+        div[data-testid="stHorizontalBlock"] > div:nth-child(2) div[style*="overflow"] {
+            height: min(55vh, 520px) !important;
+            min-height: 280px !important;
+            max-height: 75vh;
         }
 
-        /* 태블릿 (768px ~ 1024px): AI 튜터 비율 유지 */
+        /* 태블릿: 비율 유지 */
         @media (max-width: 1024px) {
             div[data-testid="stHorizontalBlock"] > div:nth-child(2) div[style*="overflow"] {
-                height: 58vh !important;
-                min-height: 320px !important;
+                height: min(52vh, 480px) !important;
+                min-height: 260px !important;
             }
-            div[data-testid="stHorizontalBlock"] > div:nth-child(2) { min-height: 65vh; }
         }
 
-        /* 휴대폰: 3열 세로 쌓기, AI 튜터를 맨 위에 두고 가장 크게 */
+        /* 휴대폰: 3열 세로 쌓기, AI 튜터 맨 위 */
         @media (max-width: 768px) {
             div[data-testid="stHorizontalBlock"] {
                 flex-direction: column !important;
@@ -91,20 +93,17 @@ def _apply_student_layout_css():
             }
             div[data-testid="stHorizontalBlock"] > div:nth-child(2) {
                 order: -1;
-                min-height: 0;
             }
             div[data-testid="stHorizontalBlock"] > div:nth-child(2) div[style*="overflow"] {
-                height: 55vh !important;
-                min-height: 280px !important;
-                max-height: 70vh;
+                height: min(50vh, 420px) !important;
+                min-height: 240px !important;
             }
         }
 
-        /* 매우 작은 화면 (세로 모드 등) */
         @media (max-width: 480px) {
             div[data-testid="stHorizontalBlock"] > div:nth-child(2) div[style*="overflow"] {
-                height: 50vh !important;
-                min-height: 240px !important;
+                height: min(48vh, 380px) !important;
+                min-height: 220px !important;
             }
         }
         </style>

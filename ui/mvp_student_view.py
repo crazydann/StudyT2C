@@ -26,7 +26,7 @@ def _make_image_renderer():
 
 
 def _apply_student_layout_css():
-    """로그인학생 화면: 노트북 브라우저 전체 화면 레이아웃 (스케치 형태)."""
+    """로그인학생 화면: 전체 화면, AI 튜터가 가장 크게, 뷰포트 비율·반응형(태블릿/휴대폰)."""
     st.markdown(
         """
         <style>
@@ -36,10 +36,58 @@ def _apply_student_layout_css():
             padding-left: 1.5rem;
             padding-right: 1.5rem;
             padding-top: 0.75rem;
+            min-height: 90vh;
         }
-        /* 상단 헤더 바 고정감 */
         section[data-testid="stSidebar"] { display: none; }
         header[data-testid="stHeader"] { background: transparent; }
+
+        /* AI 튜터 대화창이 가장 큰 비율: 가운데 열(2번째) 내 스크롤 영역을 뷰포트 비율로 */
+        div[data-testid="stHorizontalBlock"] > div:nth-child(2) div[style*="overflow"] {
+            height: 65vh !important;
+            min-height: 380px !important;
+            max-height: 85vh;
+        }
+        /* 가운데 열 자체도 최소 높이 확보 */
+        div[data-testid="stHorizontalBlock"] > div:nth-child(2) {
+            min-height: 70vh;
+        }
+
+        /* 태블릿 (768px ~ 1024px): AI 튜터 비율 유지 */
+        @media (max-width: 1024px) {
+            div[data-testid="stHorizontalBlock"] > div:nth-child(2) div[style*="overflow"] {
+                height: 58vh !important;
+                min-height: 320px !important;
+            }
+            div[data-testid="stHorizontalBlock"] > div:nth-child(2) { min-height: 65vh; }
+        }
+
+        /* 휴대폰: 3열 세로 쌓기, AI 튜터를 맨 위에 두고 가장 크게 */
+        @media (max-width: 768px) {
+            div[data-testid="stHorizontalBlock"] {
+                flex-direction: column !important;
+            }
+            div[data-testid="stHorizontalBlock"] > div {
+                max-width: 100% !important;
+                flex: 0 0 auto !important;
+            }
+            div[data-testid="stHorizontalBlock"] > div:nth-child(2) {
+                order: -1;
+                min-height: 0;
+            }
+            div[data-testid="stHorizontalBlock"] > div:nth-child(2) div[style*="overflow"] {
+                height: 55vh !important;
+                min-height: 280px !important;
+                max-height: 70vh;
+            }
+        }
+
+        /* 매우 작은 화면 (세로 모드 등) */
+        @media (max-width: 480px) {
+            div[data-testid="stHorizontalBlock"] > div:nth-child(2) div[style*="overflow"] {
+                height: 50vh !important;
+                min-height: 240px !important;
+            }
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -85,8 +133,8 @@ def render_mvp_student_view(supabase, user: dict):
     except Exception:
         pass
 
-    # 2. 3열: 좌(질의개념복습·문제만들기) | 중(AI 튜터) | 우(문제 채점기·취약점) — 스케치 비율
-    col_left, col_center, col_right = st.columns([1, 3, 1])
+    # 2. 3열: 좌 | 중(AI 튜터, 가장 넓고 길게) | 우 — 브라우저 크기에 따라 CSS로 비율/반응형 적용
+    col_left, col_center, col_right = st.columns([1, 5, 1])
 
     with col_left:
         _render_quiz_from_qa(str(student_id), student_handle)

@@ -148,8 +148,9 @@ def render_center_panel(user: dict, student_id: str, state: dict):
         state["messages"] = []
 
     # 대화창: 고정 높이 + 스크롤 (질문/답변은 이 안에서만 스크롤), 입력창은 항상 아래에
+    # 높이는 학생 화면 CSS에서 뷰포트 비율(65vh 등)로 오버라이드됨
     try:
-        chat_height = 420
+        chat_height = 720
         with st.container(height=chat_height):
             for msg in state.get("messages", []):
                 with st.chat_message(msg.get("role", "assistant")):

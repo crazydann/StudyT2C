@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
-from services.supabase_client import supabase
+from services.supabase_client import supabase, supabase_service
 
 
 def _execute_with_retry(fn, retries: int = 3, base_sleep: float = 0.6):
@@ -803,11 +803,13 @@ def get_offtopic_chat_summary(student_id: str, lookback_days: int = 7) -> Dict[s
     """
     - studying 모드 + is_study=False 인 chat_messages만 카운트.
     - 최근 예시 몇 개를 함께 반환.
+    - service role 사용 → RLS policy 없이 조회 가능.
     """
+    sb = supabase_service if supabase_service is not None else supabase
     since = _iso(_utc_now() - timedelta(days=lookback_days))
     try:
         rows = _execute_with_retry(
-            lambda: supabase.table("chat_messages")
+            lambda: sb.table("chat_messages")
             .select("created_at,content,meta")
             .eq("student_user_id", student_id)
             .gte("created_at", since)

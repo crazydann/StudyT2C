@@ -168,8 +168,9 @@ def render_center_panel(user: dict, student_id: str, state: dict):
                 u_input,
                 meta=meta,
             )
-        except Exception:
-            pass
+        except Exception as e:
+            if st.session_state.get("dev_mode", False):
+                st.warning(f"채팅 저장 실패 (공부 외 질문 이력용): {e}")
 
     st.divider()
     _render_recent_grading_history(student_id, user)

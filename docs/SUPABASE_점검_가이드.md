@@ -14,6 +14,7 @@
 | `SUPABASE_ANON_KEY` | 공개 키 (읽기 등 기본 작업용) |
 | `SUPABASE_SERVICE_ROLE_KEY` | 비공개 키 (쓰기, RLS 우회) |
 | `GROQ_API_KEY` | AI 튜터용 API 키 |
+| `RESEND_API_KEY` | (선택) 공부 외 질문 시 학부모 이메일 알림 발송용 Resend API 키 |
 
 **확인:** Supabase 대시보드 → Project Settings → API 에서 URL과 키 복사
 
@@ -81,6 +82,21 @@ SELECT 'chat_messages RLS 정책 추가 완료' AS result;
 
 ---
 
+## 2-3. users 테이블에 notification_email 컬럼 추가 (학부모 이메일 알림용)
+
+공부 외 질문 시 학부모에게 이메일 알림을 보내려면 `users` 테이블에 `notification_email` 컬럼이 있어야 합니다.
+
+Supabase 대시보드 → **SQL Editor** → **New query** → 아래 SQL 실행
+
+```sql
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS notification_email text;
+
+SELECT 'users.notification_email 컬럼 추가 완료' AS result;
+```
+
+---
+
 ## 3단계: 테이블별 코드 기대 스키마 (참고용)
 
 코드가 사용하는 테이블과 기대하는 컬럼입니다.
@@ -92,7 +108,7 @@ SELECT 'chat_messages RLS 정책 추가 완료' AS result;
 - **공부 외 질문**: `meta.mode === "studying"` 이고 `meta.is_study === false` → 공부 외로 표기
 
 ### users
-- `id`, `handle`, `role`, `status`, `detail_permission`, `show_practice_answer`
+- `id`, `handle`, `role`, `status`, `detail_permission`, `show_practice_answer`, `notification_email` (학부모 알림 수신 이메일, 선택)
 
 ### parent_student_links
 - `parent_user_id`, `student_user_id`

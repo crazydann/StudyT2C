@@ -6,7 +6,10 @@ from services.db_service import (
     list_grading_submissions,
     get_submission_items,
 )
+from services.email_service import get_parent_emails_for_student, send_offtopic_alert
 from ui.ui_errors import show_error
+
+OFFTOPIC_EMAIL_COOLDOWN_SEC = 3600
 
 
 def _is_studying(user: dict) -> bool:
@@ -41,6 +44,23 @@ def _classify_study_relevance(text: str, studying: bool) -> tuple[bool, str]:
         if kw in t:
             return False, "OFFTOPIC"
     return True, "STUDY"
+
+
+def _maybe_send_offtopic_email(student_id: str, user: dict, offtopic_content: str) -> None:
+    """공부 외 질문 저장 후 학부모에게 이메일 알림 (1시간 쿨다운)."""
+    import time
+    key = "offtopic_email_last_sent"
+    if key not in st.session_state:
+        st.session_state[key] = {}
+    last = st.session_state[key].get(student_id) or 0
+    if time.time() - last < OFFTOPIC_EMAIL_COOLDOWN_SEC:
+        return
+    to_emails = get_parent_emails_for_student(student_id)
+    if not to_emails:
+        return
+    student_handle = user.get("handle") or "학생"
+    if send_offtopic_alert(to_emails, student_handle, offtopic_content):
+        st.session_state[key][student_id] = time.time()
 
 
 def _render_recent_grading_history(student_id: str, user: dict):
@@ -169,6 +189,8 @@ def render_center_panel(user: dict, student_id: str, state: dict):
                 meta=meta,
                 answer=ans,
             )
+            if studying and not is_study:
+                _maybe_send_offtopic_email(student_id, user, u_input)
         except Exception as e:
             if st.session_state.get("dev_mode", False):
                 show_error("채팅 이력 저장 실패", e, context="save_chat_message", show_trace=False)

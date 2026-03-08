@@ -5,7 +5,12 @@ from ui.ui_errors import show_error
 from shared_summary import render_shared_summary
 from ui.parent.consult_tab import render_consult_tab
 from ui.parent.homework_tab import render_homework_tab
-from ui.parent.data_loaders import fetch_student_status, update_student_status
+from ui.parent.data_loaders import (
+    fetch_student_status,
+    update_student_status,
+    fetch_parent_notification_email,
+    update_parent_notification_email,
+)
 from ui.parent.ai_report_tab import render_ai_report_tab
 
 
@@ -62,6 +67,22 @@ def render_student_detail(supabase, parent_id: str, state: dict):
             st.success("자녀의 AI 튜터 모드를 변경했어요. 학생 화면의 다음 대화부터 반영됩니다.")
         else:
             st.warning("AI 튜터 모드 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.")
+
+    st.markdown("### 📧 알림 이메일 (공부 외 질문 시)")
+    current_email = fetch_parent_notification_email(supabase, parent_id)
+    notify_email = st.text_input(
+        "이메일 주소",
+        value=current_email,
+        placeholder="example@email.com",
+        key=f"p_notify_email_{sid}",
+        help="자녀가 공부 시간에 공부 외 질문을 하면 이 주소로 알림 메일이 발송됩니다.",
+    )
+    if st.button("알림 이메일 저장", key=f"p_save_notify_{sid}"):
+        if update_parent_notification_email(supabase, parent_id, notify_email or ""):
+            st.success("알림 이메일이 저장되었어요.")
+            st.rerun()
+        else:
+            st.warning("저장에 실패했습니다. 잠시 후 다시 시도해 주세요.")
 
     st.divider()
 

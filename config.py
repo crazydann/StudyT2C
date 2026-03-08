@@ -58,6 +58,7 @@ SUPABASE_URL = get_env_var("SUPABASE_URL")
 SUPABASE_ANON_KEY = get_env_var("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = get_env_var("SUPABASE_SERVICE_ROLE_KEY")
 GROQ_API_KEY = get_env_var("GROQ_API_KEY")
+RESEND_API_KEY = get_env_var("RESEND_API_KEY")
 
 # ✅ V3 준비: 역할(role) 단일화 (app.py 라우팅과 DB users.role 기준)
 ROLES = ["student", "parent", "teacher"]

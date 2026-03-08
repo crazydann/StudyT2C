@@ -12,7 +12,15 @@ import config
 
 
 def _get_resend_api_key() -> Optional[str]:
-    return getattr(config, "RESEND_API_KEY", None)
+    """실행 시점에 환경변수·config 다시 확인 (모듈 로드 순서/캐시 영향 방지)."""
+    key = getattr(config, "RESEND_API_KEY", None)
+    if key and str(key).strip():
+        return str(key).strip()
+    import os
+    key = os.environ.get("RESEND_API_KEY")
+    if key and str(key).strip():
+        return str(key).strip()
+    return None
 
 
 def _render_parent_offtopic_html(student_handle: str, offtopic_content: str) -> str:

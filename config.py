@@ -1,9 +1,11 @@
 import os
 import streamlit as st
+from pathlib import Path
 from dotenv import load_dotenv
 
-# 로컬 환경인 경우 .env 파일을 읽어옵니다. (Streamlit Cloud에서는 무시됨)
-load_dotenv()
+# .env를 config.py와 같은 디렉터리에서 명시적으로 로드 (실행 경로와 무관하게 동작)
+_env_path = Path(__file__).resolve().parent / ".env"
+load_dotenv(_env_path)
 
 
 def get_env_var(var_name: str):

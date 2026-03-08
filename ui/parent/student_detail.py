@@ -16,7 +16,10 @@ from services.notification_settings_service import (
     fetch_notification_settings,
     upsert_notification_settings,
     FREQUENCY_OPTIONS,
+    get_offtopic_recipients_realtime,
 )
+from services.email_service import send_focus_left_alert
+from services.focus_events_service import record_focus_alert_sent
 
 
 def render_student_detail(supabase, parent_id: str, state: dict):
@@ -118,6 +121,21 @@ def render_student_detail(supabase, parent_id: str, state: dict):
             st.rerun()
         else:
             st.warning("수신 설정 저장에 실패했습니다.")
+
+    st.caption(
+        "💡 **탭 이탈 알림**은 예약 발송이 없어요. 이 화면을 열었을 때 자녀가 최근 5분 안에 탭을 벗어난 경우에만 자동 발송됩니다. "
+        "아래 버튼으로 수동 발송할 수 있고, **📊 AI 리포트** 탭에서 집중 현황(표·그래프)과 함께 확인할 수 있어요."
+    )
+    if st.button("📤 탭 이탈 알림 수동 발송", key=f"p_focus_manual_send_{sid}"):
+        recipients = get_offtopic_recipients_realtime(str(sid))
+        if not recipients:
+            st.warning("수신자가 없어요. 이메일 알림을 켜고, 알림 주기를 **실시간**으로 두고, 위에서 이메일 주소를 저장한 뒤 다시 시도해 주세요.")
+        else:
+            if send_focus_left_alert(recipients, shandle):
+                record_focus_alert_sent(str(sid))
+                st.success(f"탭 이탈 알림을 {len(recipients)}명에게 발송했어요.")
+            else:
+                st.error("발송에 실패했어요. RESEND_API_KEY와 수신 이메일 주소를 확인해 주세요.")
 
     st.divider()
 

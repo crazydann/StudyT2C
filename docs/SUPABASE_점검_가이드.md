@@ -19,43 +19,40 @@
 
 ---
 
-## 2단계: Supabase SQL Editor에서 스키마 점검/수정
+## 2단계: chat_messages 테이블 (권장: 새로 만들기)
+
+**기존 데이터가 이상하거나 컬럼이 섞여 있으면** 테이블을 지우고 코드와 맞는 스키마로 다시 만드는 것을 권장합니다.
 
 Supabase 대시보드 → **SQL Editor** → **New query** → 아래 SQL 전체 복사 후 **Run** 실행
 
 ```sql
--- ============================================================
--- StudyT2C: 코드와 Supabase 스키마 일치 확인 및 수정 스크립트
--- 전체 복사 후 Run 실행
--- ============================================================
+-- ⚠️ 기존 chat_messages 데이터는 모두 삭제됩니다.
+DROP TABLE IF EXISTS chat_messages;
 
--- 1) chat_messages: 공부 외 질문 이력 저장용 (가장 문제 많았던 테이블)
-ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS role text;
-ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS content text;
-ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS meta jsonb;
+CREATE TABLE chat_messages (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_user_id text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  role text NOT NULL DEFAULT 'user',
+  content text NOT NULL,
+  meta jsonb
+);
 
--- session_id, question, answer를 nullable로 (없으면 에러 나올 수 있음 - 무시 가능)
-DO $$
-BEGIN
-  ALTER TABLE chat_messages ALTER COLUMN session_id DROP NOT NULL;
-EXCEPTION WHEN OTHERS THEN NULL;
-END $$;
-DO $$
-BEGIN
-  ALTER TABLE chat_messages ALTER COLUMN question DROP NOT NULL;
-EXCEPTION WHEN OTHERS THEN NULL;
-END $$;
-DO $$
-BEGIN
-  ALTER TABLE chat_messages ALTER COLUMN answer DROP NOT NULL;
-EXCEPTION WHEN OTHERS THEN NULL;
-END $$;
+ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
 
--- 완료 메시지
-SELECT 'chat_messages 스키마 수정 완료' AS result;
+DROP POLICY IF EXISTS "Allow insert chat_messages" ON chat_messages;
+CREATE POLICY "Allow insert chat_messages" ON chat_messages FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow select chat_messages" ON chat_messages;
+CREATE POLICY "Allow select chat_messages" ON chat_messages FOR SELECT USING (true);
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_student_created
+ON chat_messages (student_user_id, created_at DESC);
+
+SELECT 'chat_messages 테이블 재생성 완료' AS result;
 ```
 
-에러 없이 실행되면 OK입니다.
+실행 후 **1) 공부 관련 질문·답변**은 `meta`(is_study, subject, answer)로, **2) 공부 외 질문**은 `meta`(is_study, offtopic_category)로 구분되어 저장·표시됩니다.
 
 ---
 
@@ -88,10 +85,11 @@ SELECT 'chat_messages RLS 정책 추가 완료' AS result;
 
 코드가 사용하는 테이블과 기대하는 컬럼입니다.
 
-### chat_messages (채팅 / 공부 외 질문 이력)
-- **저장 시**: `student_user_id`, `role`, `content`, `created_at`, `meta`
-- **조회 시**: `created_at`, `content`, `meta`, `subject`, `student_user_id`
-- `session_id`, `question`, `answer`는 nullable 권장
+### chat_messages (채팅 · 공부/비공부 구분)
+- **컬럼**: `id`, `student_user_id`, `created_at`, `role`, `content`, `meta` 만 사용
+- **meta 예시**: `{ "mode": "studying", "is_study": true/false, "offtopic_category": "OFFTOPIC", "subject": "MATH", "answer": "AI 답변 텍스트" }`
+- **공부 관련 이력**: `meta.is_study === true` → 질문(content) + 답변(meta.answer)로 분석
+- **공부 외 질문**: `meta.mode === "studying"` 이고 `meta.is_study === false` → 공부 외로 표기
 
 ### users
 - `id`, `handle`, `role`, `status`, `detail_permission`, `show_practice_answer`

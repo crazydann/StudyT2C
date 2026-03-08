@@ -73,7 +73,7 @@ def get_student_learning_status(student_id: str) -> dict:
     - 오답 key_concepts 일부
     """
     chat_data = _execute_with_retry(
-        lambda: supabase.table("chat_messages").select("subject").eq("student_user_id", student_id).execute()
+        lambda: supabase.table("chat_messages").select("meta").eq("student_user_id", student_id).execute()
     ).data or []
 
     # next_review_at / now() 비교는 DB/스키마 차이로 에러 날 수 있어서 방어적으로
@@ -100,10 +100,17 @@ def get_student_learning_status(student_id: str) -> dict:
     ).data or []
 
     subject_counts = {}
-    if chat_data:
-        df = pd.DataFrame(chat_data)
-        if not df.empty and "subject" in df.columns:
-            subject_counts = df["subject"].value_counts().to_dict()
+    for row in chat_data:
+        meta = row.get("meta") or {}
+        if isinstance(meta, str):
+            try:
+                import json
+                meta = json.loads(meta)
+            except Exception:
+                meta = {}
+        subj = (meta.get("subject") or "").strip()
+        if subj:
+            subject_counts[subj] = subject_counts.get(subj, 0) + 1
 
     concepts = list(set([c for item in wrong_items for c in (item.get("key_concepts") or [])]))
 
@@ -559,11 +566,11 @@ def get_subject_achievement(student_id: str, lookback_days: int = 30) -> Dict[st
         if not bool(r.get("is_correct")):
             by_sub_wrong[code] += 1
 
-    # 2) 질문 수 (chat_messages.subject)
+    # 2) 질문 수 (chat_messages.meta.subject)
     try:
         chats = _execute_with_retry(
             lambda: supabase.table("chat_messages")
-            .select("subject")
+            .select("meta")
             .eq("student_user_id", student_id)
             .gte("created_at", since)
             .execute()
@@ -573,7 +580,11 @@ def get_subject_achievement(student_id: str, lookback_days: int = 30) -> Dict[st
 
     by_sub_q = Counter()
     for c in chats:
-        code = (c.get("subject") or "").upper()
+        meta = c.get("meta") or {}
+        if isinstance(meta, dict):
+            code = (meta.get("subject") or "").upper()
+        else:
+            code = ""
         if code in subjects:
             by_sub_q[code] += 1
 

@@ -30,22 +30,22 @@ def _apply_student_layout_css():
     st.markdown(
         """
         <style>
-        /* 로그인학생 전용: 전체 폭 사용, 헤더~본문 사이 여백 최소화 */
+        /* 로그인학생 전용: 전체 폭 사용, 헤더~본문 사이 빈 공간 제거 */
         div[data-testid="stAppViewContainer"] div.block-container {
             max-width: 100%;
             padding-left: 1.5rem;
             padding-right: 1.5rem;
-            padding-top: 0.35rem;
+            padding-top: 0.25rem;
             padding-bottom: 1rem;
             min-height: 0;
         }
-        /* 헤더와 질의개념복습/AI튜터/문제채점기 사이 블록 간격 축소 */
+        /* 헤더와 질의개념복습/AI튜터/문제채점기 사이 여백 제거 */
         div[data-testid="stAppViewContainer"] div.block-container > div {
-            margin-bottom: 0.2rem;
-            margin-top: 0.1rem;
+            margin-bottom: 0 !important;
+            margin-top: 0 !important;
         }
         div[data-testid="stAppViewContainer"] div.block-container hr {
-            margin: 0.35rem 0;
+            margin: 0.15rem 0 !important;
         }
         section[data-testid="stSidebar"] { display: none; }
         header[data-testid="stHeader"] { background: transparent; }

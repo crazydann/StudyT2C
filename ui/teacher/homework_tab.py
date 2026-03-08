@@ -6,7 +6,7 @@ from ui.components.file_preview import render_file_preview
 
 
 def render_homework_tab(supabase, student_id: str):
-    st.subheader("📦 숙제 제출/미리보기")
+    st.subheader("📦 제출 확인하기")
 
     assigns = fetch_homework_assignments(supabase, student_id, limit=30)
     if not assigns:

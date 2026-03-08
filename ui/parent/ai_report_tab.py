@@ -39,12 +39,19 @@ def render_ai_report_tab(student_id: str):
     total_off = off.get("total", 0)
     by_cat = off.get("by_category", {}) or {}
 
+    # 주의/경고 배지 (5건 이상 주의, 10건 이상 경고)
+    badge = ""
+    if total_off >= 10:
+        badge = " 🔴 경고"
+    elif total_off >= 5:
+        badge = " 🟠 주의"
+
     with st.container(border=True):
         if total_off == 0:
             st.markdown("#### 🧠 공부 시간 AI 튜터 사용")
             st.caption("최근 7일 동안 공부 시간 중 공부 외 질문 없이 잘 활용하고 있어요.")
         else:
-            st.markdown("#### ⚠️ 공부 외 질문 모니터링")
+            st.markdown(f"#### ⚠️ 공부 외 질문 모니터링{badge}")
             parts = [f"{k}: {v}건" for k, v in by_cat.items()]
             st.write(f"최근 7일 공부 시간 중 공부 외 질문: **{total_off}건**")
             if parts:

@@ -2,7 +2,11 @@ import math
 import pandas as pd
 import streamlit as st
 
-from services.analytics_service import get_class_dashboard_rows
+from services.analytics_service import (
+    get_class_dashboard_rows,
+    get_class_subject_achievement_aggregate,
+    get_class_weekly_trends,
+)
 
 
 def _fmt_pct(v) -> str:
@@ -49,6 +53,37 @@ def render_class_dashboard_tab(state: dict, student_ids, handle_map: dict):
             st.metric("최근 평균 오답률", _fmt_pct(avg_wrong))
         with c3:
             st.metric("최근 14일 평균 숙제 제출률", _fmt_pct(avg_submit))
+
+    st.markdown("---")
+
+    # 반 전체 과목별 평균 성취도 그래프
+    try:
+        agg = get_class_subject_achievement_aggregate([str(s) for s in student_ids], lookback_days=30)
+        subj_list = agg.get("subjects", []) or []
+        if subj_list:
+            st.markdown("#### 과목별 평균 성취도")
+            chart_df = pd.DataFrame(subj_list)[["label", "avg_score"]].set_index("label")
+            chart_df.columns = ["평균 점수"]
+            st.bar_chart(chart_df)
+    except Exception:
+        pass
+
+    # 반 전체 주간 오답률·숙제 제출률 추이
+    try:
+        trends = get_class_weekly_trends([str(s) for s in student_ids], weeks=4)
+        labels = trends.get("labels", [])
+        wr = trends.get("weekly_wrong_rate", [])
+        sr = trends.get("weekly_submission_rate", [])
+        if labels and (wr or sr):
+            st.markdown("#### 주간 추이")
+            trend_df = pd.DataFrame({
+                "주": labels,
+                "오답률": wr,
+                "숙제 제출률": sr,
+            }).set_index("주")
+            st.line_chart(trend_df)
+    except Exception:
+        pass
 
     st.markdown("---")
 
@@ -100,7 +135,7 @@ def render_class_dashboard_tab(state: dict, student_ids, handle_map: dict):
     opt_map = {label: r["student_id"] for label, r in zip(options, rows)}
 
     picked = st.selectbox("학생 선택", options=options, key="t_class_pick")
-    if st.button("👀 선택한 학생 상세 보기", key="t_class_open_detail"):
+    if st.button("상세 보기", key="t_class_open_detail"):
         sid = opt_map.get(picked)
         if sid:
             state["selected_student"] = str(sid)

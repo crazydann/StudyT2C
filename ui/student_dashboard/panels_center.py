@@ -132,25 +132,27 @@ def render_center_panel(user: dict, student_id: str, state: dict):
     u_input = st.chat_input("질문하세요")
     if u_input:
         is_study, category = _classify_study_relevance(u_input, studying)
-        if studying and not is_study:
-            st.warning("지금은 공부 시간이에요. 숙제/개념 관련 질문을 우선으로 해주세요.")
 
         state["messages"].append({"role": "user", "content": u_input})
         with st.chat_message("user"):
             st.markdown(u_input)
 
         with st.chat_message("assistant"):
-            with st.spinner("생각 중..."):
-                try:
-                    subj_class = classify_subject(u_input)
-                    ans = chat_with_tutor(u_input, mode=user.get("status", "break"))
-                except Exception as e:
-                    show_error("AI 튜터 응답 실패", e, context="classify_subject/chat_with_tutor")
-                    subj_class = {"subject": "OTHER", "confidence": 0.0}
-                    ans = "AI 튜터 연결 오류"
+            if studying and not is_study:
+                ans = "지금은 공부 시간이에요. 숙제나 개념 관련 질문을 해주세요. 😊"
+                subj_class = {"subject": "OTHER", "confidence": 0.0}
+            else:
+                with st.spinner("생각 중..."):
+                    try:
+                        subj_class = classify_subject(u_input)
+                        ans = chat_with_tutor(u_input, mode=user.get("status", "break"))
+                    except Exception as e:
+                        show_error("AI 튜터 응답 실패", e, context="classify_subject/chat_with_tutor")
+                        subj_class = {"subject": "OTHER", "confidence": 0.0}
+                        ans = "AI 튜터 연결 오류"
 
-                st.markdown(ans)
-                st.caption(f"분류된 과목: {subj_class.get('subject', 'OTHER')}")
+            st.markdown(ans)
+            st.caption(f"분류된 과목: {subj_class.get('subject', 'OTHER')}")
 
         state["messages"].append({"role": "assistant", "content": ans})
         try:
@@ -162,7 +164,7 @@ def render_center_panel(user: dict, student_id: str, state: dict):
             }
             save_chat_message(
                 student_id,
-                user.get("status", "break"),
+                "user",
                 u_input,
                 meta=meta,
             )

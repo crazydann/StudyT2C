@@ -35,15 +35,15 @@ def render_student_detail(supabase, teacher_id: str, state: dict, handle_map: di
 
     st.divider()
 
-    t1, t2, t3, t4 = st.tabs(["🧾 상담 리포트", "📦 숙제 제출", "📌 Shared Summary", "🧠 AI 분석"])
+    t1, t2, t3, t4 = st.tabs(["🧠 AI 분석", "🧾 상담 리포트", "📦 숙제 제출", "📌 Shared Summary"])
     with t1:
-        render_consult_tab(supabase, teacher_id, str(student_id))
+        render_teacher_ai_report_tab(str(student_id))
     with t2:
-        render_homework_tab(supabase, str(student_id))
+        render_consult_tab(supabase, teacher_id, str(student_id))
     with t3:
+        render_homework_tab(supabase, str(student_id))
+    with t4:
         try:
             render_shared_summary(supabase, str(student_id), student_handle, "teacher", teacher_id)
         except Exception as e:
             show_error("Shared Summary 로드 실패", e, context="render_shared_summary", show_trace=False)
-    with t4:
-        render_teacher_ai_report_tab(str(student_id))

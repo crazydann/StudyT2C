@@ -20,17 +20,23 @@ def render_teacher_ai_report_tab(student_id: str):
     avg_cr = summary.get("avg_correct_rate")
     cr_str = f"{int(avg_cr * 100)}%" if isinstance(avg_cr, (int, float)) else "N/A"
 
+    try:
+        off = get_offtopic_chat_summary(student_id, lookback_days=7)
+    except Exception:
+        off = {"total": 0}
+    total_off = off.get("total", 0)
+    badge = "🔴 경고" if total_off >= 10 else ("🟠 주의" if total_off >= 5 else None)
+
     c1, c2, c3 = st.columns(3)
     with c1:
         st.metric("평균 성취도", f"{avg_score}점")
     with c2:
         st.metric("평균 정답률", cr_str)
-    try:
-        off = get_offtopic_chat_summary(student_id, lookback_days=7)
-    except Exception:
-        off = {"total": 0}
     with c3:
-        st.metric("공부 외 질문(7일)", f"{off.get('total', 0)}건")
+        m_label = "공부 외 질문(7일)"
+        if badge:
+            m_label = f"{badge} · {m_label}"
+        st.metric(m_label, f"{total_off}건")
 
     st.markdown("---")
 

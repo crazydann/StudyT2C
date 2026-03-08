@@ -1,7 +1,11 @@
 import streamlit as st
 import pandas as pd
 
-from services.analytics_service import get_student_learning_status, get_subject_achievement
+from services.analytics_service import (
+    get_student_learning_status,
+    get_subject_achievement,
+    get_subject_weak_concepts,
+)
 from services.review_service import get_today_reviews, record_review_attempt
 from ui.ui_errors import show_error
 
@@ -102,6 +106,39 @@ def render_left_panel(supabase, student_id: str):
                 st.markdown(f"- **{label}**: {score}점")
     except Exception:
         pass
+
+    # AI 취약점 카드
+    st.divider()
+    st.subheader("🧠 AI 취약점 분석")
+    expand_weak = st.button("🧠 AI 취약점 분석 보기", key=f"ai_weak_btn_{student_id}", use_container_width=True)
+    key_open = f"ai_weak_open_{student_id}"
+    if expand_weak:
+        st.session_state[key_open] = True
+    if st.session_state.get(key_open, False):
+        try:
+            weak_data = get_subject_weak_concepts(student_id, lookback_days=30)
+            weak_subs = weak_data.get("subjects", {}) or {}
+            ach_data = get_subject_achievement(student_id, lookback_days=30)
+            ach_subs = ach_data.get("subjects", []) or []
+        except Exception as e:
+            show_error("취약점 분석 로드 실패", e, context="get_subject_weak_concepts", show_trace=False)
+            weak_subs = {}
+            ach_subs = []
+
+        if ach_subs:
+            chart_df = pd.DataFrame(ach_subs)[["label", "score"]].set_index("label")
+            st.bar_chart(chart_df)
+        if weak_subs:
+            st.caption("과목별 취약 개념")
+            for label, concepts in weak_subs.items():
+                if concepts:
+                    pills = " · ".join([f"`{c}`" for c in concepts[:5]])
+                    st.markdown(f"**{label}**: {pills}")
+        if st.button("접기", key=f"ai_weak_close_{student_id}", use_container_width=True):
+            st.session_state[key_open] = False
+            st.rerun()
+    else:
+        st.caption("클릭하여 과목별 취약 개념·점수 차트를 확인하세요.")
 
     st.write("---")
     st.subheader("🎯 오늘의 복습 큐")

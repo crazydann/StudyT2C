@@ -36,7 +36,7 @@ def render_student_list(state, student_ids, handle_map):
 
     c1, c2 = st.columns([1, 1])
     with c1:
-        if st.button("👀 학생 보기", key="t_open_student_detail"):
+        if st.button("학생 보기", key="t_open_student_detail"):
             if picked == "(선택 안 함)":
                 st.warning("학생을 먼저 선택해줘.")
             else:

@@ -49,12 +49,10 @@ def render_chat_panel(user: dict, student_id: str, state: dict) -> None:
 
     state["messages"].append({"role": "assistant", "content": ans})
     try:
-        save_chat_message(
-            student_id,
-            user.get("status", "break"),
-            subj_class.get("subject", "OTHER"),
-            u_input,
-            ans,
-        )
+        meta = {
+            "mode": user.get("status", "break"),
+            "subject": subj_class.get("subject", "OTHER"),
+        }
+        save_chat_message(student_id, "user", u_input, meta=meta)
     except Exception:
         pass

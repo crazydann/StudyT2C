@@ -631,6 +631,172 @@ def get_subject_achievement(student_id: str, lookback_days: int = 30) -> Dict[st
 
 
 # ---------------------------
+# 과목별 취약 개념 (학생 대시보드 AI 취약점 카드용)
+# ---------------------------
+def get_subject_weak_concepts(student_id: str, lookback_days: int = 30, top_per_subject: int = 3) -> Dict[str, Any]:
+    """
+    오답 문항의 key_concepts를 과목별로 집계하여 취약 개념 리스트 반환.
+    """
+    since = _iso(_utc_now() - timedelta(days=lookback_days))
+    try:
+        rows = _execute_with_retry(
+            lambda: supabase.table("problem_items")
+            .select("subject_code, key_concepts")
+            .eq("student_user_id", student_id)
+            .eq("is_correct", False)
+            .gte("created_at", since)
+            .limit(500)
+            .execute()
+        ).data or []
+    except Exception:
+        rows = []
+
+    by_subject: Dict[str, Counter] = {}
+    for r in rows:
+        code = (r.get("subject_code") or "OTHER").upper()
+        if code not in _SUBJECT_LABELS:
+            code = "MATH"  # fallback
+        by_subject.setdefault(code, Counter())
+        for c in (r.get("key_concepts") or []):
+            if c and isinstance(c, str):
+                by_subject[code][c.strip()] += 1
+
+    weak_by_label: Dict[str, List[str]] = {}
+    for code, cnt in by_subject.items():
+        label = _SUBJECT_LABELS.get(code, code)
+        weak_by_label[label] = [k for k, _ in cnt.most_common(top_per_subject)]
+
+    if not weak_by_label:
+        weak_by_label = {
+            "수학": ["함수 그래프", "방정식", "기하"],
+            "영어": ["관계대명사", "시제 일치", "전치사"],
+            "국어": ["주술 호응", "문법", "독해"],
+            "과학": ["화학반응", "힘과 운동", "생태계"],
+        }
+
+    return {"subjects": weak_by_label, "lookback_days": lookback_days}
+
+
+# ---------------------------
+# 반 전체 과목별 평균 성취도 (반 대시보드 그래프용)
+# ---------------------------
+def get_class_subject_achievement_aggregate(student_ids: List[str], lookback_days: int = 30) -> Dict[str, Any]:
+    """
+    반 전체 학생의 과목별 평균 성취도.
+    """
+    if not student_ids:
+        return {"subjects": [], "lookback_days": lookback_days}
+
+    agg: Dict[str, List[float]] = {}
+    for sid in student_ids:
+        try:
+            data = get_subject_achievement(sid, lookback_days=lookback_days)
+        except Exception:
+            continue
+        for s in data.get("subjects") or []:
+            label = s.get("label") or "OTHER"
+            score = s.get("score")
+            if isinstance(score, (int, float)):
+                agg.setdefault(label, []).append(float(score))
+
+    subjects = []
+    for label in _SUBJECT_LABELS.values():
+        scores = agg.get(label, [])
+        avg = sum(scores) / len(scores) if scores else 0
+        subjects.append({"label": label, "avg_score": round(avg, 1), "count": len(scores)})
+
+    return {"subjects": subjects, "lookback_days": lookback_days}
+
+
+# ---------------------------
+# 반 전체 주간 오답률/숙제 제출률 추이 (반 대시보드 그래프용)
+# ---------------------------
+def get_class_weekly_trends(student_ids: List[str], weeks: int = 4) -> Dict[str, Any]:
+    """
+    반 전체의 주간 오답률, 숙제 제출률 추이.
+    consultation_report의 grading_trend points, homework daily를 주별로 집계.
+    """
+    if not student_ids:
+        return {"weekly_wrong_rate": [], "weekly_submission_rate": [], "labels": [], "weeks": weeks}
+
+    base_dt = _utc_now().date()
+    wrong_by_week: Dict[str, List[float]] = {}
+    submit_by_week: Dict[str, List[float]] = {}
+
+    for w in range(weeks):
+        week_start = base_dt - timedelta(weeks=weeks - w)
+        week_label = week_start.isoformat()[:7] + f"-W{min(4, (week_start.day - 1) // 7 + 1)}"
+        wrong_by_week[week_label] = []
+        submit_by_week[week_label] = []
+
+    for sid in student_ids:
+        try:
+            rep = get_student_consultation_report(sid)
+        except Exception:
+            continue
+        gt = rep.get("grading_trend", {}) or {}
+        hw = rep.get("homework", {}) or {}
+        points = gt.get("points") or []
+        daily = hw.get("daily") or []
+
+        for p in points:
+            d = (p.get("date") or "")[:10]
+            if not d:
+                continue
+            try:
+                dt = datetime.fromisoformat(d).date()
+            except (ValueError, TypeError):
+                continue
+            week_start = dt - timedelta(days=dt.weekday())
+            week_label = week_start.isoformat()
+            if week_label in wrong_by_week:
+                r = p.get("wrong_rate")
+                if isinstance(r, (int, float)):
+                    wrong_by_week[week_label].append(float(r))
+
+        for day in daily:
+            d = (day.get("date") or "")[:10]
+            if not d:
+                continue
+            assigned = day.get("assigned", 0) or 0
+            submitted = day.get("submitted", 0) or 0
+            if assigned > 0:
+                try:
+                    dt = datetime.fromisoformat(d).date()
+                except (ValueError, TypeError):
+                    continue
+                week_start = dt - timedelta(days=dt.weekday())
+                week_label = week_start.isoformat()
+                if week_label in submit_by_week:
+                    submit_by_week[week_label].append(submitted / assigned)
+
+    labels = []
+    weekly_wrong: List[float] = []
+    weekly_submit: List[float] = []
+
+    for i in range(weeks):
+        week_start = base_dt - timedelta(weeks=weeks - 1 - i)
+        week_start = week_start - timedelta(days=week_start.weekday())
+        week_label = week_start.isoformat()
+        lb = f"{week_start.month}/{week_start.day}주"
+        labels.append(lb)
+        wr_list = wrong_by_week.get(week_label, [])
+        sr_list = submit_by_week.get(week_label, [])
+        weekly_wrong.append(sum(wr_list) / len(wr_list) if wr_list else 0.0)
+        weekly_submit.append(sum(sr_list) / len(sr_list) if sr_list else 0.0)
+
+    if not labels:
+        labels = [f"W-{i+1}" for i in range(weeks)]
+
+    return {
+        "weekly_wrong_rate": weekly_wrong,
+        "weekly_submission_rate": weekly_submit,
+        "labels": labels,
+        "weeks": weeks,
+    }
+
+
+# ---------------------------
 # 공부 시간 중 비공부 질문 모니터링
 # ---------------------------
 def get_offtopic_chat_summary(student_id: str, lookback_days: int = 7) -> Dict[str, Any]:

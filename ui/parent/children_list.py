@@ -37,7 +37,7 @@ def render_children_list(state: dict, children_ids, handle_map):
 
     c1, c2 = st.columns([1, 1])
     with c1:
-        if st.button("👀 자녀 보기", key="p_open_child_detail"):
+        if st.button("자녀 보기", key="p_open_child_detail"):
             if picked == "(선택 안 함)":
                 st.warning("자녀를 먼저 선택해줘.")
             else:

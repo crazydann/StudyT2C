@@ -7,7 +7,7 @@ from ui.parent.data_loaders import fetch_homework_assignments, fetch_latest_home
 
 
 def render_homework_tab(supabase, student_id: str):
-    st.subheader("📦 숙제 제출 확인 (미리보기 + 클릭)")
+    st.subheader("📦 제출 확인하기")
 
     assigns = fetch_homework_assignments(supabase, student_id, limit=30)
     if not assigns:

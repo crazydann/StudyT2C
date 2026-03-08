@@ -275,10 +275,23 @@ def route_to_ui(role, user):
         st.error(f"알 수 없는 role: {role}")
 
 
+def _is_student_login_app() -> bool:
+    """STUDENT_LOGIN_APP env이 true면 로그인학생 화면 모드. config 의존 최소화."""
+    try:
+        import config
+        fn = getattr(config, "is_student_login_app", None)
+        if callable(fn):
+            return fn()
+    except Exception:
+        pass
+    import os
+    v = os.environ.get("STUDENT_LOGIN_APP") or ""
+    return str(v).strip().lower() in ("1", "true", "yes")
+
+
 def main():
-    import config
     # studyt2c.streamlit.app 전용: 로그인 화면 → 로그인학생 화면(문제 채점기 + AI 튜터만)
-    if config.is_student_login_app():
+    if _is_student_login_app():
         from ui.mvp_login import render_login_page
         from ui.mvp_student_view import render_mvp_student_view
         if not st.session_state.get("mvp_user"):

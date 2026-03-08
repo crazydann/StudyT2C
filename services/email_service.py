@@ -12,14 +12,29 @@ import config
 
 
 def _get_resend_api_key() -> Optional[str]:
-    """실행 시점에 환경변수·config 다시 확인 (모듈 로드 순서/캐시 영향 방지)."""
-    key = getattr(config, "RESEND_API_KEY", None)
-    if key and str(key).strip():
-        return str(key).strip()
+    """실행 시점에 환경변수·config·.env 재로드까지 시도."""
     import os
     key = os.environ.get("RESEND_API_KEY")
     if key and str(key).strip():
         return str(key).strip()
+    key = getattr(config, "RESEND_API_KEY", None)
+    if key and str(key).strip():
+        return str(key).strip()
+    # .env가 아직 로드 안 됐을 수 있으므로 한 번 더 로드 후 재확인
+    try:
+        from pathlib import Path
+        from dotenv import load_dotenv
+        for path in (Path(__file__).resolve().parent.parent / ".env", Path.cwd() / ".env"):
+            if path.exists():
+                load_dotenv(path)
+                break
+        else:
+            load_dotenv()
+        key = os.environ.get("RESEND_API_KEY")
+        if key and str(key).strip():
+            return str(key).strip()
+    except Exception:
+        pass
     return None
 
 

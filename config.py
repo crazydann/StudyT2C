@@ -3,9 +3,10 @@ import streamlit as st
 from pathlib import Path
 from dotenv import load_dotenv
 
-# .env를 config.py와 같은 디렉터리에서 명시적으로 로드 (실행 경로와 무관하게 동작)
-_env_path = Path(__file__).resolve().parent / ".env"
-load_dotenv(_env_path)
+# .env 로드: config.py 같은 디렉터리 + 현재 작업 디렉터리(및 상위) 둘 다 시도
+_env_dir = Path(__file__).resolve().parent
+load_dotenv(_env_dir / ".env")
+load_dotenv()  # cwd 기준 find_dotenv()로도 로드
 
 
 def get_env_var(var_name: str):

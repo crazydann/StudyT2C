@@ -27,7 +27,8 @@ def _make_image_renderer():
 
 def render_mvp_student_view(supabase, user: dict):
     """
-    로그인한 MVP 학생 전용: AI 튜터 + 문제 채점기만 표시.
+    로그인한 MVP 학생 전용.
+    상단: 로그인 학생 이름 | 가운데: AI 튜터 대화창 | 왼쪽: 질의개념복습 | 오른쪽: 문제 채점기
     """
     student_id = (user or {}).get("id")
     student_handle = (user or {}).get("handle") or "student"
@@ -39,21 +40,17 @@ def render_mvp_student_view(supabase, user: dict):
     state.setdefault("upload_rotation", {})
     st.session_state["mvp_student_state"] = state
 
-    st.markdown("### 로그인학생 화면")
-    st.caption(f"**{student_handle}** · 문제 채점기와 AI 튜터만 사용할 수 있어요.")
-
-    # 로그아웃
-    if st.button("로그아웃", key="mvp_logout"):
-        st.session_state.pop("mvp_user", None)
-        st.session_state.pop("current_user", None)
-        st.rerun()
-
-    st.divider()
-
-    # 질의개념복습: AI 튜터 Q&A 기반 5지선다 출제·채점
-    _render_quiz_from_qa(str(student_id), student_handle)
-    # 질의개념복습 통계 + AI 취약점 분석
-    _render_quiz_weakness_analysis(str(student_id), student_handle)
+    # 1. 윗 부분: 로그인 학생 이름 + 로그아웃
+    top_col1, top_col2 = st.columns([3, 1])
+    with top_col1:
+        st.markdown(f"### 👤 {student_handle}")
+        st.caption("로그인학생 화면 · AI 튜터와 질의개념복습, 문제 채점기를 사용할 수 있어요.")
+    with top_col2:
+        st.write("")
+        if st.button("로그아웃", key="mvp_logout"):
+            st.session_state.pop("mvp_user", None)
+            st.session_state.pop("current_user", None)
+            st.rerun()
 
     st.divider()
 
@@ -65,14 +62,20 @@ def render_mvp_student_view(supabase, user: dict):
     except Exception:
         pass
 
-    # AI 튜터 | 문제 채점기 2열
-    col_chat, col_grading = st.columns([2, 1])
+    # 2. 가운데 AI 튜터 / 왼쪽 질의개념복습 / 오른쪽 문제 채점기 (1 : 2 : 1 비율)
+    col_left, col_center, col_right = st.columns([1, 2, 1])
 
-    with col_chat:
+    with col_left:
+        st.markdown("#### 📌 질의개념복습")
+        _render_quiz_from_qa(str(student_id), student_handle)
+        _render_quiz_weakness_analysis(str(student_id), student_handle)
+
+    with col_center:
         st.markdown("#### 🤖 AI 튜터")
+        st.caption("질문을 입력하면 AI가 답변해 줍니다. (일반 대화처럼 이어서 대화할 수 있어요)")
         render_center_panel(user, str(student_id), state)
 
-    with col_grading:
+    with col_right:
         st.markdown("#### 📝 문제 채점기")
         render_grading_panel(user, str(student_id), state, _make_image_renderer())
 

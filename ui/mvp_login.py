@@ -1,0 +1,36 @@
+# ui/mvp_login.py
+"""
+studyt2c.streamlit.app 전용: 로그인 화면 (id/pwd).
+로그인 성공 시 session_state.mvp_user 에 user dict 저장.
+"""
+import streamlit as st
+
+from services.mvp_auth import verify_login, ensure_mvp_students
+
+
+def render_login_page() -> bool:
+    """
+    로그인 폼 렌더링. 성공 시 True 반환하고 session_state.mvp_user 설정.
+    실패/미제출 시 False.
+    """
+    ensure_mvp_students()
+
+    st.markdown("## 🔐 로그인")
+    st.caption("MVP 테스트용 로그인 (학생 david / joshua)")
+
+    login_id = st.text_input("아이디", key="mvp_login_id", placeholder="david 또는 joshua")
+    password = st.text_input("비밀번호", type="password", key="mvp_login_pwd", placeholder="비밀번호")
+
+    if st.button("로그인", type="primary", use_container_width=True):
+        if not (login_id and password):
+            st.error("아이디와 비밀번호를 입력해 주세요.")
+            return False
+        user = verify_login(login_id, password)
+        if user:
+            st.session_state["mvp_user"] = user
+            st.session_state["current_user"] = user
+            st.rerun()
+        else:
+            st.error("아이디 또는 비밀번호가 올바르지 않습니다.")
+
+    return False

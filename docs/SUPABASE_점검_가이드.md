@@ -15,6 +15,7 @@
 | `SUPABASE_SERVICE_ROLE_KEY` | 비공개 키 (쓰기, RLS 우회) |
 | `GROQ_API_KEY` | AI 튜터용 API 키 |
 | `RESEND_API_KEY` | (선택) 공부 외 질문 시 학부모 이메일 알림 발송용 Resend API 키 |
+| `STUDENT_LOGIN_APP` | (선택) `true` 이면 studyt2c.streamlit.app 에서 로그인 화면 + 로그인학생 화면만 사용 |
 
 **확인:** Supabase 대시보드 → Project Settings → API 에서 URL과 키 복사
 

@@ -66,3 +66,15 @@ ROLES = ["student", "parent", "teacher"]
 # 기타 공통 상수
 STATUS = ["studying", "break"]
 SUBJECTS = ["KOREAN", "ENGLISH", "MATH", "SCIENCE", "OTHER"]
+
+
+def is_student_login_app() -> bool:
+    """
+    studyt2c.streamlit.app 배포에서 True.
+    이 모드에서는 로그인 화면 → 로그인학생 화면(문제 채점기 + AI 튜터만)만 노출.
+    admin.studyt2c.streamlit.app 등 다른 배포에서는 False 로 두면 기존 계정 선택 화면 유지.
+    """
+    v = get_env_var("STUDENT_LOGIN_APP")
+    if not v:
+        return False
+    return str(v).strip().lower() in ("1", "true", "yes")

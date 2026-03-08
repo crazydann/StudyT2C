@@ -276,6 +276,19 @@ def route_to_ui(role, user):
 
 
 def main():
+    import config
+    # studyt2c.streamlit.app 전용: 로그인 화면 → 로그인학생 화면(문제 채점기 + AI 튜터만)
+    if config.is_student_login_app():
+        from ui.mvp_login import render_login_page
+        from ui.mvp_student_view import render_mvp_student_view
+        if not st.session_state.get("mvp_user"):
+            render_login_page()
+            return
+        st.title("StudyT2C (MVP 테스트)")
+        render_mvp_student_view(supabase, st.session_state["mvp_user"])
+        return
+
+    # 기존: admin 등 계정 선택 후 전체 화면
     try:
         users = fetch_users_cached()
     except Exception as e:

@@ -30,6 +30,26 @@ def format_ts_kst(ts: str | None, with_seconds: bool = False) -> str:
         return (str(ts)[:19].replace("T", " ") if ts else "—")
 
 
+def format_ts_short(ts: str | None) -> str:
+    """날짜만 M/D/YYYY 형식 (예: 3/7/2026)."""
+    if not ts:
+        return "—"
+    try:
+        s = (ts if isinstance(ts, str) else str(ts)).strip().replace("Z", "+00:00")
+        if "T" not in s and " " in s:
+            s = s.replace(" ", "T", 1) + "+00:00"
+        dt = datetime.fromisoformat(s)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        kst_dt = dt.astimezone(KST)
+        return f"{kst_dt.month}/{kst_dt.day}/{kst_dt.year}"
+    except Exception:
+        try:
+            return str(ts)[:10].replace("-", "/")
+        except Exception:
+            return "—"
+
+
 def st_image_fullwidth(img_bytes_or_url):
     """
     Streamlit 버전 호환용 이미지 렌더링.

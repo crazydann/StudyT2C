@@ -135,8 +135,6 @@ def _render_recent_grading_history(student_id: str, user: dict):
 
 
 def render_center_panel(user: dict, student_id: str, state: dict):
-    st.subheader("💬 AI 튜터")
-
     studying = _is_studying(user)
     if studying:
         st.caption("🟢 studying 모드: 학습 외 질문은 제한될 수 있어요.")
@@ -147,25 +145,32 @@ def render_center_panel(user: dict, student_id: str, state: dict):
     if not isinstance(state.get("messages"), list):
         state["messages"] = []
 
-    # 대화창: 고정 높이 + 스크롤 (질문/답변은 이 안에서만 스크롤), 입력창은 항상 아래에
-    # 높이는 학생 화면 CSS에서 뷰포트 비율(65vh 등)로 오버라이드됨
+    welcome = "안녕하세요! Focus-Super-AI 학습 도우미예요. 공부하다 궁금한 점을 물어보세요!"
+
+    # 대화창: 고정 높이 + 스크롤, 메시지 없을 땐 환영 메시지 1개 표시
     try:
         chat_height = 720
         with st.container(height=chat_height):
+            if not state.get("messages"):
+                with st.chat_message("assistant"):
+                    st.markdown(welcome)
             for msg in state.get("messages", []):
                 with st.chat_message(msg.get("role", "assistant")):
                     st.markdown(msg.get("content", ""))
                     if msg.get("role") == "assistant" and msg.get("_subject"):
                         st.caption(f"분류된 과목: {msg.get('_subject')}")
     except TypeError:
+        if not state.get("messages"):
+            with st.chat_message("assistant"):
+                st.markdown(welcome)
         for msg in state.get("messages", []):
             with st.chat_message(msg.get("role", "assistant")):
                 st.markdown(msg.get("content", ""))
                 if msg.get("role") == "assistant" and msg.get("_subject"):
                     st.caption(f"분류된 과목: {msg.get('_subject')}")
 
-    # 입력창은 대화 영역 바로 아래 고정 (ChatGPT처럼)
-    u_input = st.chat_input("질문하세요")
+    # 입력창: 첨부 UI 문구
+    u_input = st.chat_input("학습 관련 질문을 입력하세요...")
     if u_input:
         is_study, category = _classify_study_relevance(u_input, studying)
         if studying and not is_study:
@@ -196,6 +201,3 @@ def render_center_panel(user: dict, student_id: str, state: dict):
                 show_error("채팅 이력 저장 실패", e, context="save_chat_message", show_trace=False)
                 st.code(str(e), language="text")
         st.rerun()
-
-    st.divider()
-    _render_recent_grading_history(student_id, user)

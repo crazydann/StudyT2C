@@ -64,8 +64,9 @@ def _friendly_heic_error(e: Exception) -> None:
         st.caption(f"(dev) {type(e).__name__}: {e}")
 
 
-def render_grading_panel(user: dict, student_id: str, state: dict, render_image) -> None:
-    st.subheader("📸 문제 채점기")
+def render_grading_panel(user: dict, student_id: str, state: dict, render_image, show_title: bool = True) -> None:
+    if show_title:
+        st.subheader("📸 문제 채점기")
 
     if bool(st.session_state.get("dev_mode", False)):
         st.caption(f"DB write client: {'service_role' if supabase_service is not None else 'anon (NO SERVICE KEY)'}")

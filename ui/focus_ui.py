@@ -96,7 +96,7 @@ def render_focus_section(student_id: str, student_handle: str) -> None:
 
     if recent_left:
         st.warning("⚠️ **방금 탭을 벗어났습니다** — 아래 비집중 구간에서 확인하세요.")
-        if can_auto_send and recipients and send_focus_left_alert(recipients, student_handle):
+        if can_auto_send and recipients and send_focus_left_alert(recipients, student_handle)[0]:
             record_focus_alert_sent(student_id)
             st.success("알림 수신자에게 탭 이탈 알림 메일을 발송했습니다.")
 

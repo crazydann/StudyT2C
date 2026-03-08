@@ -162,14 +162,18 @@ def send_focus_left_alert(
     recipients: List[Dict[str, Any]],
     student_handle: str,
     subject_prefix: str = "[StudyT2C]",
-) -> bool:
-    """탭 이탈 시 학부모/선생님에게 즉시 알림 이메일 발송. 실제로 1통이라도 발송되면 True."""
+) -> tuple[bool, Optional[str]]:
+    """
+    탭 이탈 시 학부모/선생님에게 즉시 알림 이메일 발송.
+    반환: (1통이라도 발송 성공 여부, 실패 시 마지막 Resend 오류 메시지)
+    """
     if not recipients:
-        return False
+        return False, None
     api_key = _get_resend_api_key()
     if not api_key:
-        return False
+        return False, None
     sent_count = 0
+    last_error: Optional[str] = None
     try:
         import resend
         resend.api_key = api_key
@@ -188,11 +192,11 @@ def send_focus_left_alert(
                     "html": html,
                 })
                 sent_count += 1
-            except Exception:
-                pass
-        return sent_count > 0
-    except Exception:
-        return False
+            except Exception as e:
+                last_error = str(e).strip() or getattr(e, "message", "") or type(e).__name__
+        return sent_count > 0, last_error if sent_count == 0 else None
+    except Exception as e:
+        return False, str(e).strip() or getattr(e, "message", "") or type(e).__name__
 
 
 def send_focus_left_alert_with_reason(
@@ -207,10 +211,15 @@ def send_focus_left_alert_with_reason(
         return False, "수신자가 없습니다. 이메일 알림 ON, 주기 실시간, 이메일 주소 저장 후 다시 시도해 주세요."
     if not _get_resend_api_key():
         return False, "발송 설정(RESEND_API_KEY)이 없어 메일을 보낼 수 없습니다. 관리자에게 문의해 주세요."
-    ok = send_focus_left_alert(recipients, student_handle)
+    ok, resend_error = send_focus_left_alert(recipients, student_handle)
     if ok:
         return True, f"{len(recipients)}명에게 발송했습니다. 도착까지 보통 **10초~1분** 걸립니다. 스팸함도 확인해 주세요."
-    return False, "Resend API 발송에 실패했습니다. 수신 이메일 주소와 API 키를 확인해 주세요."
+    # Resend 무료 계정: onboarding@resend.dev 는 특정 수신자만 가능할 수 있음. 도메인 인증 후 발신 주소 변경 시 해결.
+    msg = "Resend API 발송에 실패했습니다. 수신 이메일 주소와 API 키를 확인해 주세요."
+    if resend_error:
+        msg += f" (오류: {resend_error})"
+    msg += " Resend 무료 계정은 **onboarding@resend.dev**로는 본인/테스트 수신자로만 발송 가능할 수 있습니다. [Resend 대시보드](https://resend.com/domains)에서 도메인을 인증한 뒤 발신 주소를 바꾸면 모든 주소로 발송할 수 있습니다."
+    return False, msg
 
 
 def get_parent_emails_for_student(student_id: str) -> List[str]:

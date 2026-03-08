@@ -25,10 +25,31 @@ def _make_image_renderer():
     return _render
 
 
+def _apply_student_layout_css():
+    """로그인학생 화면: 노트북 브라우저 전체 화면 레이아웃 (스케치 형태)."""
+    st.markdown(
+        """
+        <style>
+        /* 로그인학생 전용: 전체 폭 사용 */
+        div[data-testid="stAppViewContainer"] div.block-container {
+            max-width: 100%;
+            padding-left: 1.5rem;
+            padding-right: 1.5rem;
+            padding-top: 0.75rem;
+        }
+        /* 상단 헤더 바 고정감 */
+        section[data-testid="stSidebar"] { display: none; }
+        header[data-testid="stHeader"] { background: transparent; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_mvp_student_view(supabase, user: dict):
     """
     로그인한 MVP 학생 전용.
-    상단: 로그인 학생 이름 | 가운데: AI 튜터 대화창 | 왼쪽: 질의개념복습 | 오른쪽: 문제 채점기
+    첨부 스케치 형태: 상단 헤더(입력창) | 좌: 질의개념복습·문제만들기 | 중: AI 튜터(스크롤+입력) | 우: 문제 채점기·취약점
     """
     student_id = (user or {}).get("id")
     student_handle = (user or {}).get("handle") or "student"
@@ -40,18 +61,20 @@ def render_mvp_student_view(supabase, user: dict):
     state.setdefault("upload_rotation", {})
     st.session_state["mvp_student_state"] = state
 
-    # 1. 윗 부분: 로그인 학생 이름 + 로그아웃
-    top_col1, top_col2 = st.columns([3, 1])
-    with top_col1:
-        st.markdown(f"### 👤 {student_handle}")
-        st.caption("로그인학생 화면 · AI 튜터와 질의개념복습, 문제 채점기를 사용할 수 있어요.")
-    with top_col2:
-        st.write("")
+    _apply_student_layout_css()
+
+    # 1. 상단: 헤더 바 (학생 이름 | 로그아웃) — 스케치의 "입력창" 영역
+    header_left, header_right = st.columns([4, 1])
+    with header_left:
+        st.markdown(
+            f'<div style="font-size:1.1rem; font-weight:600;">👤 {student_handle}</div>',
+            unsafe_allow_html=True,
+        )
+    with header_right:
         if st.button("로그아웃", key="mvp_logout"):
             st.session_state.pop("mvp_user", None)
             st.session_state.pop("current_user", None)
             st.rerun()
-
     st.divider()
 
     try:
@@ -62,22 +85,21 @@ def render_mvp_student_view(supabase, user: dict):
     except Exception:
         pass
 
-    # 2. 가운데 AI 튜터 / 왼쪽 질의개념복습 / 오른쪽 문제 채점기 (1 : 2 : 1 비율)
-    col_left, col_center, col_right = st.columns([1, 2, 1])
+    # 2. 3열: 좌(질의개념복습·문제만들기) | 중(AI 튜터) | 우(문제 채점기·취약점) — 스케치 비율
+    col_left, col_center, col_right = st.columns([1, 3, 1])
 
     with col_left:
-        st.markdown("#### 📌 질의개념복습")
         _render_quiz_from_qa(str(student_id), student_handle)
-        _render_quiz_weakness_analysis(str(student_id), student_handle)
 
     with col_center:
         st.markdown("#### 🤖 AI 튜터")
-        st.caption("질문을 입력하면 AI가 답변해 줍니다. (일반 대화처럼 이어서 대화할 수 있어요)")
         render_center_panel(user, str(student_id), state)
 
     with col_right:
         st.markdown("#### 📝 문제 채점기")
         render_grading_panel(user, str(student_id), state, _make_image_renderer())
+        st.markdown("---")
+        _render_quiz_weakness_analysis(str(student_id), student_handle)
 
 
 def _render_quiz_from_qa(student_id: str, student_handle: str = "학생") -> None:

@@ -1,3 +1,10 @@
+# 앱 진입 시 가장 먼저 .env 로드 (Streamlit 실행 경로와 무관하게 프로젝트 루트 .env 사용)
+from pathlib import Path
+from dotenv import load_dotenv
+_env_path = Path(__file__).resolve().parent / ".env"
+if _env_path.exists():
+    load_dotenv(_env_path)
+
 import streamlit as st
 
 st.set_page_config(page_title="StudyT2C", layout="wide")

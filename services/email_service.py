@@ -12,7 +12,7 @@ import config
 
 
 def _get_resend_api_key() -> Optional[str]:
-    """실행 시점에 환경변수·config·.env 재로드까지 시도."""
+    """실행 시점에 환경변수·config·.env 재로드·.env 파일 직접 파싱까지 시도."""
     import os
     key = os.environ.get("RESEND_API_KEY")
     if key and str(key).strip():
@@ -20,19 +20,33 @@ def _get_resend_api_key() -> Optional[str]:
     key = getattr(config, "RESEND_API_KEY", None)
     if key and str(key).strip():
         return str(key).strip()
-    # .env가 아직 로드 안 됐을 수 있으므로 한 번 더 로드 후 재확인
+    # .env 재로드 (override=True로 파일 값으로 덮어씀)
     try:
         from pathlib import Path
         from dotenv import load_dotenv
         for path in (Path(__file__).resolve().parent.parent / ".env", Path.cwd() / ".env"):
             if path.exists():
-                load_dotenv(path)
+                load_dotenv(path, override=True)
                 break
         else:
-            load_dotenv()
+            load_dotenv(override=True)
         key = os.environ.get("RESEND_API_KEY")
         if key and str(key).strip():
             return str(key).strip()
+    except Exception:
+        pass
+    # 마지막: .env 파일을 직접 읽어서 RESEND_API_KEY 추출 (load_dotenv 미적용 시 대비)
+    try:
+        for path in (Path(__file__).resolve().parent.parent / ".env", Path.cwd() / ".env"):
+            if path.exists():
+                raw = path.read_text(encoding="utf-8", errors="replace")
+                for line in raw.splitlines():
+                    line = line.strip()
+                    if line.startswith("RESEND_API_KEY=") and not line.startswith("#"):
+                        key = line.split("=", 1)[1].strip().strip('"\'')
+                        if key:
+                            return key
+                break
     except Exception:
         pass
     return None

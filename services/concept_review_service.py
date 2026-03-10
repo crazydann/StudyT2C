@@ -107,6 +107,70 @@ def get_concept_review_recent_all(student_id: str, limit: int = 50) -> List[Dict
         return []
 
 
+def get_concept_review_daily_stats(student_id: str, days: int = 7) -> List[Dict[str, Any]]:
+    """
+    최근 N일(기본 7일) 동안의 일별 복습 퀴즈 통계.
+    각 항목: {"date": "YYYY-MM-DD", "total": int, "correct": int, "wrong": int, "accuracy_pct": float}
+    """
+    if days <= 0:
+        return []
+
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    try:
+        rows = (
+            _sb()
+            .table("concept_review_attempts")
+            .select("is_correct, created_at")
+            .eq("student_user_id", student_id)
+            .gte("created_at", since)
+            .order("created_at", desc=True)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        rows = []
+
+    # created_at(UTC) 기준으로 날짜 단위 집계
+    buckets: Dict[str, Dict[str, Any]] = {}
+    for r in rows:
+        ts_raw = r.get("created_at")
+        try:
+            # Supabase는 ISO 형식 문자열로 반환. timezone-aware 로 파싱.
+            dt = datetime.fromisoformat(ts_raw.replace("Z", "+00:00")) if isinstance(ts_raw, str) else ts_raw
+        except Exception:
+            continue
+        if not isinstance(dt, datetime):
+            continue
+        date_key = dt.date().isoformat()
+        if date_key not in buckets:
+            buckets[date_key] = {"date": date_key, "total": 0, "correct": 0, "wrong": 0}
+        buckets[date_key]["total"] += 1
+        if r.get("is_correct") is True:
+            buckets[date_key]["correct"] += 1
+        else:
+            buckets[date_key]["wrong"] += 1
+
+    # 날짜 오름차순 정렬 + 정답률 계산
+    result: List[Dict[str, Any]] = []
+    for date_key in sorted(buckets.keys()):
+        item = buckets[date_key]
+        total = item["total"]
+        correct = item["correct"]
+        wrong = item["wrong"]
+        acc = (correct / total * 100) if total else 0
+        result.append(
+            {
+                "date": date_key,
+                "total": total,
+                "correct": correct,
+                "wrong": wrong,
+                "accuracy_pct": round(acc, 1),
+            }
+        )
+    return result
+
+
 # ---------------------------
 # concept_review_quizzes: 만든 문제 저장 (지난 문제들·재풀이)
 # ---------------------------

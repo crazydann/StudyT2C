@@ -170,9 +170,9 @@ def render_mvp_student_view(supabase, user: dict):
             st.caption("학습/쉬는시간 모드는 학부모 화면에서만 변경할 수 있어요.")
         with r2:
             if st.button("로그아웃", key="mvp_logout", type="secondary"):
-            st.session_state.pop("mvp_user", None)
-            st.session_state.pop("current_user", None)
-            st.rerun()
+                st.session_state.pop("mvp_user", None)
+                st.session_state.pop("current_user", None)
+                st.rerun()
 
     effective_user = {**user, "status": effective_status}
 

@@ -134,10 +134,22 @@ def chat_with_tutor(user_message: str, mode: str = "studying") -> str:
     AI 튜터 대화.
     실패 시 사용자에게 보이는 메시지로 반환(서비스 예외를 그대로 내지 않음).
     """
-    system_prompt = (
-        f"당신은 친절한 AI 튜터입니다. 현재 모드: {mode}.\n"
-        "'studying' 모드 시 학습 외 질문은 정중히 거절하고, 학습으로 유도하세요."
-    )
+    mode = (mode or "studying").strip().lower()
+    if mode == "studying":
+        system_prompt = (
+            "당신은 친절한 AI 튜터입니다. 현재 모드는 'studying'(집중 학습)입니다.\n"
+            "이 모드에서는 **공부·숙제·개념·시험과 직접 관련된 질문에만** 답변하세요.\n"
+            "게임/연애/주식/잡담 등 공부와 관련 없는 질문이 오면 정중히 거절하고, "
+            "대신 공부 관련 질문을 하도록 유도하세요."
+        )
+    else:
+        # break 모드: 자유 질문 허용 (일반 챗봇처럼 응답)
+        system_prompt = (
+            "당신은 친절한 AI 도우미입니다. 현재 모드는 'break'(쉬는 시간)입니다.\n"
+            "이 모드에서는 공부/숙제뿐 아니라 일상적인 궁금증, 취미, 기술 이야기 등 "
+            "대부분의 질문에 자유롭게 답변해도 됩니다.\n"
+            "단, 불법/유해한 내용은 피하고, 안전하고 건강한 방향으로만 대답하세요."
+        )
     try:
         content = _chat_completion(
             [

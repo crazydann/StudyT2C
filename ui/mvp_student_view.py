@@ -127,15 +127,15 @@ def render_mvp_student_view(supabase, user: dict):
     state.setdefault("graded_items", [])
     state.setdefault("pending_save", None)
     state.setdefault("upload_rotation", {})
-    state.setdefault("display_status", user.get("status") or "break")
-    if "study_timer_start" not in state and state.get("display_status") == "studying":
+    # 학생은 부모가 설정한 학습 모드만 사용: status는 DB(user) 기준, 학생 화면에서 변경 불가
+    effective_status = (user.get("status") or "break")
+    if "study_timer_start" not in state and effective_status == "studying":
         state["study_timer_start"] = time.time()
     st.session_state["mvp_student_state"] = state
 
     _apply_student_layout_css()
 
-    # 1. 헤더: 왼쪽(학생 이름·집중 상태) | 가운데(타이머) | 오른쪽(과목·쉬는시간/학습시작·로그아웃)
-    effective_status = state.get("display_status") or "break"
+    # 1. 헤더: 왼쪽(학생 이름·집중 상태) | 가운데(타이머) | 오른쪽(과목·로그아웃)
     studying = effective_status == "studying"
     header_left, header_center, header_right = st.columns([2, 1, 2])
     with header_left:
@@ -158,7 +158,7 @@ def render_mvp_student_view(supabase, user: dict):
             unsafe_allow_html=True,
         )
     with header_right:
-        r1, r2 = st.columns(2)
+        r1, r2 = st.columns([2, 1])
         with r1:
             st.selectbox(
                 "과목",
@@ -167,17 +167,9 @@ def render_mvp_student_view(supabase, user: dict):
                 key="mvp_subject",
                 label_visibility="collapsed",
             )
+            st.caption("학습/쉬는시간 모드는 학부모 화면에서만 변경할 수 있어요.")
         with r2:
-            if studying:
-                if st.button("쉬는시간", key="mvp_break_btn", type="primary"):
-                    state["display_status"] = "break"
-                    st.rerun()
-            else:
-                if st.button("학습시작", key="mvp_study_btn", type="primary"):
-                    state["display_status"] = "studying"
-                    state["study_timer_start"] = time.time()
-                    st.rerun()
-        if st.button("로그아웃", key="mvp_logout", type="secondary"):
+            if st.button("로그아웃", key="mvp_logout", type="secondary"):
             st.session_state.pop("mvp_user", None)
             st.session_state.pop("current_user", None)
             st.rerun()

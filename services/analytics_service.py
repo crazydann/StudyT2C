@@ -432,6 +432,131 @@ def get_student_consultation_report(student_id: str) -> Dict[str, Any]:
 
 
 # ---------------------------
+# NEW: AI 기반 학습 진행도 요약 (질문·복습·채점 트렌드)
+# ---------------------------
+def get_student_ai_learning_progress(student_id: str) -> Dict[str, Any]:
+    """
+    학생별 AI 학습 진행도 요약.
+    - 최근 7일 vs 그 이전 7일 비교:
+      - AI 튜터 질문 수
+      - 질의개념복습 퀴즈 정답률
+      - 이미지 채점 정답률
+    """
+    now = _utc_now()
+
+    def _range(days_back_start: int, days_back_end: int) -> tuple[str, str]:
+        end_dt = now - timedelta(days=days_back_start)
+        start_dt = now - timedelta(days=days_back_end)
+        return _iso(start_dt), _iso(end_dt)
+
+    # 기간 정의: recent(최근 7일), prev(그 이전 7일)
+    recent_start, recent_end = _range(0, 7)
+    prev_start, prev_end = _range(7, 14)
+
+    # 1) 튜터 질문 수 (chat_messages)
+    def _count_chats(start: str, end: str) -> int:
+        rows = _execute_with_retry(
+            lambda: supabase.table("chat_messages")
+            .select("id")
+            .eq("student_user_id", student_id)
+            .eq("role", "user")
+            .gte("created_at", start)
+            .lt("created_at", end)
+            .execute()
+        ).data or []
+        return len(rows)
+
+    chats_recent = _count_chats(recent_start, recent_end)
+    chats_prev = _count_chats(prev_start, prev_end)
+
+    # 2) 질의개념복습 정답률 (concept_review_attempts)
+    def _review_accuracy(start: str, end: str) -> Dict[str, Any]:
+        try:
+            rows = (
+                supabase.table("concept_review_attempts")
+                .select("is_correct")
+                .eq("student_user_id", student_id)
+                .gte("created_at", start)
+                .lt("created_at", end)
+                .execute()
+                .data
+                or []
+            )
+        except Exception:
+            rows = []
+        total = len(rows)
+        correct = sum(1 for r in rows if r.get("is_correct") is True)
+        wrong = total - correct
+        acc = (correct / total * 100) if total else 0.0
+        return {
+            "total": total,
+            "correct": correct,
+            "wrong": wrong,
+            "accuracy_pct": round(acc, 1),
+        }
+
+    review_recent = _review_accuracy(recent_start, recent_end)
+    review_prev = _review_accuracy(prev_start, prev_end)
+
+    # 3) 이미지 채점 정답률 (grading_items)
+    def _grading_accuracy(start: str, end: str) -> Dict[str, Any]:
+        try:
+            rows = (
+                supabase.table("grading_items")
+                .select("is_correct, created_at")
+                .eq("student_user_id", student_id)
+                .gte("created_at", start)
+                .lt("created_at", end)
+                .execute()
+                .data
+                or []
+            )
+        except Exception:
+            rows = []
+        total = len(rows)
+        correct = sum(1 for r in rows if r.get("is_correct") is True)
+        wrong = total - correct
+        acc = (correct / total * 100) if total else 0.0
+        return {
+            "total": total,
+            "correct": correct,
+            "wrong": wrong,
+            "accuracy_pct": round(acc, 1),
+        }
+
+    grading_recent = _grading_accuracy(recent_start, recent_end)
+    grading_prev = _grading_accuracy(prev_start, prev_end)
+
+    def _delta(curr: float, prev: float) -> float:
+        return round(curr - prev, 1)
+
+    return {
+        "window_days": 7,
+        "chat": {
+            "recent": chats_recent,
+            "prev": chats_prev,
+            "delta": chats_recent - chats_prev,
+        },
+        "review_quiz": {
+            "recent": review_recent,
+            "prev": review_prev,
+            "delta_accuracy_pct": _delta(
+                review_recent.get("accuracy_pct", 0.0),
+                review_prev.get("accuracy_pct", 0.0),
+            ),
+        },
+        "vision_grading": {
+            "recent": grading_recent,
+            "prev": grading_prev,
+            "delta_accuracy_pct": _delta(
+                grading_recent.get("accuracy_pct", 0.0),
+                grading_prev.get("accuracy_pct", 0.0),
+            ),
+        },
+    }
+
+
+# ---------------------------
 # 반(클래스) 대시보드용 점수
 # ---------------------------
 def _risk_score(

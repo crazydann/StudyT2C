@@ -1,15 +1,22 @@
 import json
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import config
 from groq import Groq
+
+try:
+    # OpenAI 공식 Python SDK (없어도 동작하도록 optional import)
+    from openai import OpenAI  # type: ignore[import-not-found]
+except Exception:  # pragma: no cover - 선택적 의존성
+    OpenAI = None  # type: ignore[assignment]
 
 logger = logging.getLogger("studyt2c.llm")
 
 # 내부 캐시
 _groq_client: Optional[Groq] = None
+_openai_client: Optional["OpenAI"] = None  # type: ignore[name-defined]
 
 
 class LlmServiceError(Exception):
@@ -25,8 +32,56 @@ def _get_groq_client() -> Groq:
     return _groq_client
 
 
-def _model_text() -> str:
-    return config.get_env_var("GROQ_TEXT_MODEL") or "llama-3.3-70b-versatile"
+def _get_openai_client() -> "OpenAI":  # type: ignore[name-defined]
+    global _openai_client
+    if OpenAI is None:
+        raise LlmServiceError("openai 패키지가 설치되지 않았습니다. `pip install openai` 후 다시 시도해 주세요.")
+    if not config.OPENAI_API_KEY:
+        raise LlmServiceError("OPENAI_API_KEY가 설정되지 않았습니다.")
+    if _openai_client is None:
+        _openai_client = OpenAI(api_key=config.OPENAI_API_KEY)  # type: ignore[call-arg]
+    return _openai_client  # type: ignore[return-value]
+
+
+def _text_model_name() -> Tuple[str, str]:
+    """
+    (provider, model_name) 반환.
+    provider: "openai" 또는 "groq"
+    """
+    if config.OPENAI_API_KEY:
+        model = config.OPENAI_TEXT_MODEL or "gpt-4.1-mini"
+        return "openai", model
+    # 기본값: 기존 Groq 동작 유지
+    return "groq", (config.get_env_var("GROQ_TEXT_MODEL") or "llama-3.3-70b-versatile")
+
+
+def _chat_completion(messages: List[Dict[str, Any]], temperature: float = 0.3) -> str:
+    """
+    텍스트 전용 chat completion 공통 헬퍼.
+    - OPENAI_API_KEY가 있으면 OpenAI 사용
+    - 아니면 기존 Groq 사용
+    """
+    provider, model = _text_model_name()
+    try:
+        if provider == "openai":
+            client = _get_openai_client()
+            res = client.chat.completions.create(  # type: ignore[call-arg]
+                model=model,
+                messages=messages,
+                temperature=temperature,
+            )
+            return (res.choices[0].message.content or "").strip()
+        else:
+            client = _get_groq_client()
+            res = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+            )
+            return (res.choices[0].message.content or "").strip()
+    except Exception as e:
+        logger.exception("_chat_completion failed (provider=%s): %s", provider, e)
+        raise
 
 
 def _extract_json(text: str) -> Dict[str, Any]:
@@ -63,13 +118,7 @@ def classify_subject(text: str) -> dict:
     )
 
     try:
-        client = _get_groq_client()
-        res = client.chat.completions.create(
-            model=_model_text(),
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.1,
-        )
-        raw = res.choices[0].message.content
+        raw = _chat_completion([{"role": "user", "content": prompt}], temperature=0.1)
         data = _extract_json(raw)
         # 최소 보정
         if "subject" not in data:
@@ -90,13 +139,14 @@ def chat_with_tutor(user_message: str, mode: str = "studying") -> str:
         "'studying' 모드 시 학습 외 질문은 정중히 거절하고, 학습으로 유도하세요."
     )
     try:
-        client = _get_groq_client()
-        res = client.chat.completions.create(
-            model=_model_text(),
-            messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_message}],
+        content = _chat_completion(
+            [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
             temperature=0.5,
         )
-        return res.choices[0].message.content
+        return content
     except Exception as e:
         logger.exception("chat_with_tutor failed: %s", e)
         return f"AI 튜터 연결 오류: {e}"
@@ -116,13 +166,7 @@ def generate_practice_question(key_concepts: list) -> Optional[dict]:
     # 간단 재시도 (JSON 깨짐 방지)
     for attempt in range(2):
         try:
-            client = _get_groq_client()
-            res = client.chat.completions.create(
-                model=_model_text(),
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.3,
-            )
-            raw = res.choices[0].message.content
+            raw = _chat_completion([{"role": "user", "content": prompt}], temperature=0.3)
             data = _extract_json(raw)
 
             if not isinstance(data, dict) or not data.get("question"):
@@ -154,13 +198,7 @@ def generate_quiz_from_qa(question_text: str, answer_text: str) -> Optional[Dict
     )
     for attempt in range(2):
         try:
-            client = _get_groq_client()
-            res = client.chat.completions.create(
-                model=_model_text(),
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.3,
-            )
-            raw = res.choices[0].message.content
+            raw = _chat_completion([{"role": "user", "content": prompt}], temperature=0.3)
             data = _extract_json(raw)
             if not isinstance(data, dict) or not data.get("question"):
                 raise ValueError("quiz json missing question")
@@ -225,13 +263,8 @@ def generate_weakness_analysis_from_quiz(
     )
 
     try:
-        client = _get_groq_client()
-        res = client.chat.completions.create(
-            model=_model_text(),
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.4,
-        )
-        return (res.choices[0].message.content or "").strip() or "취약점 분석을 생성하지 못했습니다."
+        content = _chat_completion([{"role": "user", "content": prompt}], temperature=0.4)
+        return content or "취약점 분석을 생성하지 못했습니다."
     except Exception as e:
         logger.exception("generate_weakness_analysis_from_quiz failed: %s", e)
         return "취약점 분석 생성 실패"
@@ -250,13 +283,8 @@ def generate_parent_report(student_name: str, stats: dict) -> str:
     )
 
     try:
-        client = _get_groq_client()
-        res = client.chat.completions.create(
-            model=_model_text(),
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.6,
-        )
-        return res.choices[0].message.content
+        content = _chat_completion([{"role": "user", "content": prompt}], temperature=0.6)
+        return content
     except Exception as e:
         logger.exception("generate_parent_report failed: %s", e)
         return "리포트 생성 실패"
@@ -283,13 +311,7 @@ def recommend_concepts_from_chat(chat_items: List[Dict[str, Any]], max_concepts:
         "반드시 JSON 배열만 한 줄로 출력하세요. 예: [\"개념1\", \"개념2\"]"
     )
     try:
-        client = _get_groq_client()
-        res = client.chat.completions.create(
-            model=_model_text(),
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-        )
-        raw = (res.choices[0].message.content or "").strip()
+        raw = _chat_completion([{"role": "user", "content": prompt}], temperature=0.3)
         if raw.startswith("["):
             arr = json.loads(raw)
             if isinstance(arr, list):
@@ -307,13 +329,8 @@ def explain_concept(concept_name: str) -> str:
         "2~4문장으로 쉽게 설명해 주세요. 한글로만 작성하세요."
     )
     try:
-        client = _get_groq_client()
-        res = client.chat.completions.create(
-            model=_model_text(),
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.4,
-        )
-        return (res.choices[0].message.content or "").strip() or "설명을 불러오지 못했습니다."
+        content = _chat_completion([{"role": "user", "content": prompt}], temperature=0.4)
+        return content or "설명을 불러오지 못했습니다."
     except Exception as e:
         logger.exception("explain_concept failed: %s", e)
         return "설명을 불러오는 중 오류가 발생했습니다."

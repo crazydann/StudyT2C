@@ -1,10 +1,15 @@
 import json
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import config
 from groq import Groq
+
+try:
+    from openai import OpenAI  # type: ignore[import-not-found]
+except Exception:  # pragma: no cover
+    OpenAI = None  # type: ignore[assignment]
 
 # 기존 프로젝트 구조 호환: utils/json_schema.py 쪽에 validate_grading_json이 있다고 가정
 from utils.json_schema import validate_grading_json
@@ -12,6 +17,7 @@ from utils.json_schema import validate_grading_json
 logger = logging.getLogger("studyt2c.vision")
 
 _groq_client: Optional[Groq] = None
+_openai_client: Optional["OpenAI"] = None  # type: ignore[name-defined]
 
 
 class VisionGradingError(Exception):
@@ -27,8 +33,25 @@ def _get_groq_client() -> Groq:
     return _groq_client
 
 
-def _model_vision() -> str:
-    return config.get_env_var("GROQ_VISION_MODEL") or "meta-llama/llama-4-scout-17b-16e-instruct"
+def _get_openai_client() -> "OpenAI":  # type: ignore[name-defined]
+    global _openai_client
+    if OpenAI is None:
+        raise VisionGradingError("openai 패키지가 설치되지 않았습니다. `pip install openai` 후 다시 시도해 주세요.")
+    if not config.OPENAI_API_KEY:
+        raise VisionGradingError("OPENAI_API_KEY가 설정되지 않았습니다.")
+    if _openai_client is None:
+        _openai_client = OpenAI(api_key=config.OPENAI_API_KEY)  # type: ignore[call-arg]
+    return _openai_client  # type: ignore[return-value]
+
+
+def _vision_model_name() -> Tuple[str, str]:
+    """
+    (provider, model_name) 반환.
+    provider: "openai" 또는 "groq"
+    """
+    if config.OPENAI_API_KEY and config.OPENAI_VISION_MODEL:
+        return "openai", config.OPENAI_VISION_MODEL
+    return "groq", (config.get_env_var("GROQ_VISION_MODEL") or "meta-llama/llama-4-scout-17b-16e-instruct")
 
 
 def _strip_fences(t: str) -> str:
@@ -77,25 +100,44 @@ def grade_image_to_items(image_url: str) -> List[dict]:
 
     prompt = base_prompt
     max_retries = 3
-    client = _get_groq_client()
+
+    provider, model = _vision_model_name()
 
     for attempt in range(max_retries):
         try:
-            resp = client.chat.completions.create(
-                model=_model_vision(),
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {"type": "image_url", "image_url": {"url": image_url}},
-                        ],
-                    }
-                ],
-                temperature=0.1,
-            )
+            if provider == "openai":
+                client = _get_openai_client()
+                resp = client.chat.completions.create(  # type: ignore[call-arg]
+                    model=model,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": prompt},
+                                {"type": "image_url", "image_url": {"url": image_url}},
+                            ],
+                        }
+                    ],
+                    temperature=0.1,
+                )
+                raw = (resp.choices[0].message.content or "").strip()
+            else:
+                client = _get_groq_client()
+                resp = client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": prompt},
+                                {"type": "image_url", "image_url": {"url": image_url}},
+                            ],
+                        }
+                    ],
+                    temperature=0.1,
+                )
+                raw = resp.choices[0].message.content.strip()
 
-            raw = resp.choices[0].message.content.strip()
             parsed = _extract_json_object(raw)
 
             ok, err = validate_grading_json(parsed)
@@ -109,7 +151,7 @@ def grade_image_to_items(image_url: str) -> List[dict]:
             return items
 
         except Exception as e:
-            logger.exception("grade_image_to_items failed (attempt=%s/%s): %s", attempt + 1, max_retries, e)
+            logger.exception("grade_image_to_items failed (provider=%s, attempt=%s/%s): %s", provider, attempt + 1, max_retries, e)
 
             if attempt == max_retries - 1:
                 raise VisionGradingError(

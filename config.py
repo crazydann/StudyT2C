@@ -63,6 +63,13 @@ SUPABASE_SERVICE_ROLE_KEY = get_env_var("SUPABASE_SERVICE_ROLE_KEY")
 GROQ_API_KEY = get_env_var("GROQ_API_KEY")
 RESEND_API_KEY = get_env_var("RESEND_API_KEY")
 
+# LLM 관련 공통 설정 (Groq ↔ OpenAI 전환 대비)
+OPENAI_API_KEY = get_env_var("OPENAI_API_KEY")
+# 텍스트 전용 기본 모델 (예: gpt-4.1-mini)
+OPENAI_TEXT_MODEL = get_env_var("OPENAI_TEXT_MODEL")
+# 이미지+텍스트용 비전 모델 (예: gpt-4o-mini)
+OPENAI_VISION_MODEL = get_env_var("OPENAI_VISION_MODEL")
+
 # ✅ V3 준비: 역할(role) 단일화 (app.py 라우팅과 DB users.role 기준)
 ROLES = ["student", "parent", "teacher"]
 

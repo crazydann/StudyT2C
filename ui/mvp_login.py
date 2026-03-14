@@ -15,11 +15,12 @@ def render_login_page() -> bool:
     """
     ensure_mvp_students()
 
-    st.markdown("## 🔐 로그인")
-    st.caption("MVP 테스트용 로그인 (학생 david / joshua)")
-
-    login_id = st.text_input("아이디", key="mvp_login_id", placeholder="david 또는 joshua")
+    st.markdown("## 로그인")
+    login_id = st.text_input("아이디", key="mvp_login_id", placeholder="아이디")
     password = st.text_input("비밀번호", type="password", key="mvp_login_pwd", placeholder="비밀번호")
+
+    with st.expander("비밀번호를 잊으셨나요?", expanded=False):
+        st.caption("재설정이 필요하시면 로그인 후 우측 상단 **문의하기**로 연락 주세요.")
 
     if st.button("로그인", type="primary", use_container_width=True):
         if not (login_id and password):
@@ -44,5 +45,5 @@ def render_login_page() -> bool:
         else:
             st.error("아이디 또는 비밀번호가 올바르지 않습니다.")
 
-    st.caption("관리자(계정 선택) 화면: 아이디·비밀번호 **admin** 으로 로그인하거나, 주소 뒤에 **?app=admin** 을 붙여 접속하세요.")
+    st.caption("관리자: **?app=admin** 또는 admin / admin")
     return False

@@ -239,3 +239,70 @@ def get_parent_emails_for_student(student_id: str) -> List[str]:
     from services.notification_settings_service import get_offtopic_recipients_realtime
     recs = get_offtopic_recipients_realtime(student_id)
     return [r["email"] for r in recs if r.get("role") == "parent"]
+
+
+def get_homework_notification_recipients(student_id: str) -> List[Dict[str, Any]]:
+    """숙제 제출 알림을 받을 학부모·선생님 목록 (연결된 사용자 중 이메일이 있는 경우)."""
+    from services.supabase_client import supabase_service, supabase
+    sb = supabase_service if supabase_service is not None else supabase
+    out: List[Dict[str, Any]] = []
+    try:
+        for link_table, id_col, role in [
+            ("parent_student_links", "parent_user_id", "parent"),
+            ("teacher_student_links", "teacher_user_id", "teacher"),
+        ]:
+            links = (sb.table(link_table).select(id_col).eq("student_user_id", student_id).execute()).data or []
+            for r in links:
+                uid = r.get(id_col)
+                if not uid:
+                    continue
+                users = sb.table("users").select("notification_email").eq("id", uid).limit(1).execute().data or []
+                if not users:
+                    continue
+                email = (users[0].get("notification_email") or "").strip()
+                if email and "@" in email:
+                    out.append({"email": email, "role": role})
+    except Exception:
+        pass
+    return out
+
+
+def send_homework_submitted_notification(
+    student_handle: str,
+    assignment_title: str,
+    student_id: str,
+    subject_prefix: str = "[StudyT2C]",
+) -> bool:
+    """학생이 숙제를 제출했을 때 연결된 학부모·선생님에게 이메일 발송."""
+    recipients = get_homework_notification_recipients(student_id)
+    if not recipients:
+        return False
+    api_key = _get_resend_api_key()
+    if not api_key:
+        return False
+    subject = f"{subject_prefix} 숙제 제출 알림"
+    html = f"""
+    <p>안녕하세요. StudyT2C입니다.</p>
+    <p>학생 <strong>{student_handle}</strong> 님이 숙제 <strong>{assignment_title}</strong>를 제출했습니다.</p>
+    <p>앱에서 확인해 주세요.</p>
+    <p>— StudyT2C</p>
+    """
+    try:
+        import resend
+        resend.api_key = api_key
+        for r in recipients:
+            to_addr = (r.get("email") or "").strip()
+            if not to_addr or "@" not in to_addr:
+                continue
+            try:
+                resend.Emails.send({
+                    "from": "StudyT2C <onboarding@resend.dev>",
+                    "to": [to_addr],
+                    "subject": subject,
+                    "html": html,
+                })
+            except Exception:
+                pass
+        return True
+    except Exception:
+        return False

@@ -6,6 +6,8 @@ from services.analytics_service import (
     get_student_ai_learning_progress,
     get_subject_achievement,
     get_subject_weak_concepts,
+    get_today_goal_progress,
+    get_streak_days,
 )
 from services.review_service import get_today_reviews, record_review_attempt
 from ui.ui_errors import show_error
@@ -59,7 +61,25 @@ def _count_recent_practice(supabase, student_id: str, limit: int = 20) -> int:
 
 
 def render_left_panel(supabase, student_id: str):
-    st.subheader("✅ 오늘 할 일 (MVP)")
+    # 오늘 목표 + 연속 학습
+    try:
+        goal = get_today_goal_progress(student_id)
+        streak = get_streak_days(student_id)
+    except Exception:
+        goal = {"grading_count": 0, "chat_count": 0, "target_grading": 1, "target_chat": 5}
+        streak = 0
+
+    with st.container(border=True):
+        g_done = goal.get("grading_count", 0)
+        g_tgt = goal.get("target_grading", 1)
+        c_done = goal.get("chat_count", 0)
+        c_tgt = goal.get("target_chat", 5)
+        st.markdown("**오늘 목표**")
+        st.caption(f"채점 {min(g_done, g_tgt)}/{g_tgt}회 · 질문 {min(c_done, c_tgt)}/{c_tgt}개")
+        if streak > 0:
+            st.caption(f"🔥 **{streak}일** 연속 학습")
+
+    st.divider()
 
     try:
         reviews = get_today_reviews(student_id)
@@ -69,25 +89,14 @@ def render_left_panel(supabase, student_id: str):
         reviews = []
         review_count = 0
 
-    hw_open = _count_open_homework(supabase, student_id)
-    prac_recent = _count_recent_practice(supabase, student_id, limit=20)
-
-    with st.container(border=True):
-        st.checkbox(f"복습하기 (오늘 {review_count}개)", value=False, disabled=True)
-        st.checkbox(f"숙제 제출 (미제출 {hw_open}개)", value=False, disabled=True)
-        st.checkbox(f"연습 풀이 (최근 {prac_recent}건)", value=False, disabled=True)
-        st.caption("※ 체크는 가이드용(자동 완료 처리 X)")
-
-    st.divider()
-
-    st.subheader("📊 내 학습 현황")
+    st.subheader("내 학습 현황")
     try:
         status_data = get_student_learning_status(student_id)
     except Exception as e:
         show_error("학습 현황 로드 실패", e, context="get_student_learning_status", show_trace=False)
         status_data = {"review_count": 0, "subject_counts": {}}
 
-    st.info(f"🚨 오늘의 복습: **{status_data.get('review_count', 0)}개**")
+    st.caption(f"오늘 복습 {status_data.get('review_count', 0)}개")
 
     # 최근 7일 vs 이전 7일 AI 학습 진행도
     try:
@@ -109,7 +118,6 @@ def render_left_panel(supabase, student_id: str):
                 pct = grading.get("recent", {}).get("accuracy_pct") or 0
                 delta = grading.get("delta_accuracy_pct") or 0
                 st.metric("채점 정답률", f"{pct}%", f"{delta:+.1f}%" if delta else "—")
-            st.caption("지난주 대비 변화입니다.")
     except Exception:
         pass
 
@@ -132,10 +140,9 @@ def render_left_panel(supabase, student_id: str):
     except Exception:
         pass
 
-    # AI 취약점 카드
     st.divider()
-    st.subheader("🧠 AI 취약점 분석")
-    expand_weak = st.button("🧠 AI 취약점 분석 보기", key=f"ai_weak_btn_{student_id}", use_container_width=True)
+    st.subheader("AI 취약점 분석")
+    expand_weak = st.button("AI 취약점 분석 보기", key=f"ai_weak_btn_{student_id}", use_container_width=True)
     key_open = f"ai_weak_open_{student_id}"
     if expand_weak:
         st.session_state[key_open] = True
@@ -162,15 +169,12 @@ def render_left_panel(supabase, student_id: str):
         if st.button("접기", key=f"ai_weak_close_{student_id}", use_container_width=True):
             st.session_state[key_open] = False
             st.rerun()
-    else:
-        st.caption("클릭하여 과목별 취약 개념·점수 차트를 확인하세요.")
 
     st.write("---")
-    st.subheader("🎯 오늘의 복습 큐")
+    st.subheader("오늘의 복습")
     if not reviews:
-        st.caption("오늘은 복습 항목이 없어요.")
-        st.caption("👉 오답노트 탭에서 오답으로 연습문제를 만들거나, 아래 **AI 취약점 분석 보기**를 눌러 추천 복습을 확인해 보세요.")
-        if st.button("🧠 AI 취약점 분석 보기", key=f"ai_weak_btn_zero_{student_id}", use_container_width=True):
+        st.caption("복습할 항목이 없습니다. 오답노트에서 연습문제를 만들거나 AI 취약점 분석을 확인해 보세요.")
+        if st.button("AI 취약점 분석 보기", key=f"ai_weak_btn_zero_{student_id}", use_container_width=True):
             st.session_state[f"ai_weak_open_{student_id}"] = True
             st.rerun()
         return

@@ -67,17 +67,16 @@ def render_student_console(supabase, user):
     state = get_role_state("student", student_id)
     _ensure_student_state_defaults(state)
 
-    # 개발모드
     if "dev_mode" not in st.session_state:
         st.session_state["dev_mode"] = False
-    st.toggle("🧪 개발 모드", key="dev_mode")
-
-    render_app_header("Student", student_handle)
-
-    # 이미지 크게 보기 토글
     if "st_image_fullwidth" not in st.session_state:
         st.session_state["st_image_fullwidth"] = True
-    st.toggle("🖼️ 이미지 크게 보기", key="st_image_fullwidth")
+    with st.sidebar:
+        st.caption("설정")
+        st.toggle("개발 모드", key="dev_mode")
+        st.toggle("이미지 크게 보기", key="st_image_fullwidth")
+
+    render_app_header("학생", student_handle)
 
     # ✅ bool이 아니라 "함수"로 전달
     st_image_fullwidth = _make_st_image_helper()

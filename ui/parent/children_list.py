@@ -4,7 +4,7 @@ import streamlit as st
 
 def render_children_list(state: dict, children_ids, handle_map):
     st.subheader("👨‍👩‍👧‍👦 자녀 선택")
-    st.caption("👉 자녀를 선택한 뒤 **자녀 보기**를 누르면 집중 현황·취약점·알림 설정을 볼 수 있어요.")
+    st.caption("자녀를 선택한 뒤 [자녀 보기]를 누르세요.")
 
     if not children_ids:
         st.info("연결된 자녀가 없습니다.")

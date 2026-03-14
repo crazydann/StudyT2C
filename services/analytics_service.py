@@ -122,6 +122,92 @@ def get_student_learning_status(student_id: str) -> dict:
     }
 
 
+def get_today_goal_progress(student_id: str) -> Dict[str, Any]:
+    """오늘 목표 진행: 오늘(UTC) 채점 횟수·질문 수. 목표는 채점 1회, 질문 5개."""
+    now = _utc_now()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    since = _iso(today_start)
+    grading_count = 0
+    chat_count = 0
+    try:
+        sub = _execute_with_retry(
+            lambda: supabase.table("problem_submissions")
+            .select("id")
+            .eq("student_user_id", student_id)
+            .gte("created_at", since)
+            .execute()
+        )
+        grading_count = len(sub.data or [])
+    except Exception:
+        pass
+    try:
+        ch = _execute_with_retry(
+            lambda: supabase.table("chat_messages")
+            .select("id")
+            .eq("student_user_id", student_id)
+            .eq("role", "user")
+            .gte("created_at", since)
+            .execute()
+        )
+        chat_count = len(ch.data or [])
+    except Exception:
+        pass
+    return {
+        "grading_count": grading_count,
+        "chat_count": chat_count,
+        "target_grading": 1,
+        "target_chat": 5,
+    }
+
+
+def get_streak_days(student_id: str) -> int:
+    """오늘 포함 연속 학습 일수 (채점 또는 질문이 있는 날만 카운트)."""
+    sb = supabase_service if supabase_service is not None else supabase
+    now = _utc_now()
+    dates_with_activity = set()
+    try:
+        for table, date_col, extra_eq in [
+            ("problem_submissions", "created_at", {}),
+            ("chat_messages", "created_at", {"role": "user"}),
+        ]:
+            try:
+                q = sb.table(table).select(date_col).eq("student_user_id", student_id).gte(date_col, _iso(now - timedelta(days=365))).limit(2000)
+                for k, v in extra_eq.items():
+                    q = q.eq(k, v)
+                rows = (q.execute()).data or []
+            except Exception:
+                rows = []
+            for r in rows:
+                raw = r.get(date_col)
+                if raw:
+                    try:
+                        if isinstance(raw, str) and "T" in raw:
+                            d = raw.split("T")[0]
+                        else:
+                            d = str(raw)[:10]
+                        if d:
+                            dates_with_activity.add(d)
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+    if not dates_with_activity:
+        return 0
+    today_str = now.strftime("%Y-%m-%d")
+    if today_str not in dates_with_activity:
+        return 0
+    streak = 0
+    cur = now.date()
+    while True:
+        cur_str = cur.strftime("%Y-%m-%d")
+        if cur_str in dates_with_activity:
+            streak += 1
+            cur -= timedelta(days=1)
+        else:
+            break
+    return streak
+
+
 # ---------------------------
 # 오답 피드백 기반 학습 성향 요약
 # ---------------------------

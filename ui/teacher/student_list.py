@@ -9,7 +9,7 @@ def render_student_list(state, student_ids, handle_map):
     - 학생을 선택하고 '학생 보기' 버튼을 눌러야 상세로 이동
     """
     st.subheader("학생 선택")
-    st.caption("👉 학생을 선택한 뒤 **학생 보기**를 누르면 AI 분석·상담·숙제·리포트를 볼 수 있어요.")
+    st.caption("학생을 선택한 뒤 [학생 보기]를 누르세요.")
 
     if not student_ids:
         st.info("연결된 학생이 없습니다.")

@@ -7,6 +7,7 @@ from services.db_service import (
     upsert_homework_non_submit_reason,
     DbServiceError,
 )
+from services.email_service import send_homework_submitted_notification
 from ui.ui_errors import show_error
 from ui.components.file_preview import render_file_preview
 
@@ -209,13 +210,17 @@ def render_student_homework(supabase, user, student_id: str, state: dict, st_ima
                         except TypeError:
                             st.image(norm_bytes, use_column_width=True)
 
-                    st.caption("제출하면 수정할 수 없습니다.")
                     hw_confirm_key = f"hw_confirm_{student_id}_{aid_str}"
-                    if st.checkbox("제출할까요?", key=hw_confirm_key, value=False):
+                    if st.checkbox("제출 후 수정할 수 없습니다. 제출할까요?", key=hw_confirm_key, value=False):
                         if st.button("제출하기", key=f"hw_submit_{student_id}_{aid_str}"):
                             with st.spinner("업로드/제출 중..."):
                                 storage_url = upload_problem_image(student_id, norm_bytes, f"HW_{aid_str}_{norm_name}")
                                 _insert_submission(supabase, aid, student_id, storage_url)
+                                send_homework_submitted_notification(
+                                    user.get("handle") or "학생",
+                                    (aid.get("title") or "숙제").strip() or "숙제",
+                                    student_id,
+                                )
                             st.success("제출 완료 ✅")
                             st.rerun()
 

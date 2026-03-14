@@ -7,7 +7,7 @@ from ui.teacher.student_list import render_student_list
 from ui.teacher.student_detail import render_student_detail
 from ui.teacher.class_dashboard_tab import render_class_dashboard_tab
 from services.demo_seed import seed_demo_basic, delete_demo_data
-from ui.layout import render_app_header, page_card
+from ui.layout import render_top_bar_with_tabs
 
 
 def render_teacher_console(supabase, user):
@@ -16,51 +16,34 @@ def render_teacher_console(supabase, user):
     with st.sidebar:
         with st.expander("설정", expanded=False):
             st.toggle("개발 모드", key="dev_mode")
+        if bool(st.session_state.get("dev_mode", False)):
+            with st.expander("개발자 도구", expanded=False):
+                if st.button("데모 데이터 생성", key="t_seed_demo"):
+                    try:
+                        info = seed_demo_basic()
+                        st.success(f"완료: {info['teacher']['handle']} 등")
+                    except Exception as e:
+                        st.error(str(e))
+                if st.button("데모 데이터 삭제", key="t_delete_demo", type="secondary"):
+                    try:
+                        result = delete_demo_data()
+                        st.success(result.get("message", "삭제 완료.")) if result.get("ok") else st.error(result.get("message", "실패"))
+                    except Exception as e:
+                        st.error(str(e))
 
     teacher_id = user.get("id")
     teacher_handle = user.get("handle") or "teacher"
-    render_app_header("선생님", teacher_handle)
+    selected = render_top_bar_with_tabs("선생님", teacher_handle, ["반 대시보드", "학생별 상세"], key="teacher_main_tab")
 
-    with page_card():
-        if bool(st.session_state.get("dev_mode", False)):
-            with st.expander("개발자 도구", expanded=False):
-                c_seed, c_del = st.columns(2)
-                with c_seed:
-                    if st.button("데모 데이터 생성", key="t_seed_demo"):
-                        try:
-                            info = seed_demo_basic()
-                            st.success(
-                                f"데모 유저 생성 완료: teacher={info['teacher']['handle']}, "
-                                f"student={info['student']['handle']}, parent={info['parent']['handle']}"
-                            )
-                        except Exception as e:
-                            st.error(f"데모 데이터 생성 실패: {e}")
-                with c_del:
-                    if st.button("데모 데이터 삭제", key="t_delete_demo", type="secondary"):
-                        try:
-                            result = delete_demo_data()
-                            if result.get("ok"):
-                                st.success(result.get("message", "삭제 완료."))
-                                if result.get("deleted"):
-                                    st.caption(str(result["deleted"]))
-                            else:
-                                st.error(result.get("message", "삭제 실패."))
-                        except Exception as e:
-                            st.error(f"데모 데이터 삭제 실패: {e}")
+    state = get_role_state("teacher", teacher_id)
+    state.setdefault("selected_student", None)
+    student_ids = fetch_teacher_student_ids(supabase, teacher_id)
+    handle_map = fetch_user_handles_by_ids(supabase, student_ids)
 
-        state = get_role_state("teacher", teacher_id)
-        state.setdefault("selected_student", None)
-
-        student_ids = fetch_teacher_student_ids(supabase, teacher_id)
-        handle_map = fetch_user_handles_by_ids(supabase, student_ids)
-
-        tab_dash, tab_students = st.tabs(["반 대시보드", "학생별 상세"])
-
-        with tab_dash:
-            render_class_dashboard_tab(state, student_ids, handle_map)
-
-        with tab_students:
-            if state["selected_student"] is None:
-                render_student_list(state, student_ids, handle_map)
-            else:
-                render_student_detail(supabase, teacher_id, state, handle_map)
+    if selected == "반 대시보드":
+        render_class_dashboard_tab(state, student_ids, handle_map)
+    else:
+        if state["selected_student"] is None:
+            render_student_list(state, student_ids, handle_map)
+        else:
+            render_student_detail(supabase, teacher_id, state, handle_map)

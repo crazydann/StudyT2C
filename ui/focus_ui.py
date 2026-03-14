@@ -114,26 +114,28 @@ def render_focus_section(student_id: str, student_handle: str) -> None:
     with c3:
         st.metric("탭 이탈 횟수", f"{left_tab_count}회")
 
-    # ----- 비집중 구간: 표 + 그래프 (학부모가 한눈에 이해할 수 있게) -----
-    st.markdown("**🕐 비집중 구간** (탭을 벗어난 시각 → 다시 돌아온 시각)")
-    if not idle_periods:
-        st.caption("비집중 구간이 없거나, 아직 탭에 복귀하지 않은 상태일 수 있습니다.")
-    else:
-        rows = []
-        for i, (start_ts, end_ts) in enumerate(idle_periods[:50], 1):
-            dur = _idle_duration_minutes(start_ts, end_ts)
-            start_str = format_ts_kst(start_ts)
-            end_str = format_ts_kst(end_ts)
-            chart_label = f"{_format_time_only(start_ts)}→{_format_time_only(end_ts)}"
-            rows.append({
-                "구간(나간→돌아온)": chart_label,
-                "나간 시각": start_str,
-                "돌아온 시각": end_str,
-                "비집중(분)": round(dur, 1),
-            })
-        df = pd.DataFrame(rows)
-        st.dataframe(df[["나간 시각", "돌아온 시각", "비집중(분)"]], use_container_width=True, hide_index=True)
+    # ----- 비집중 구간: 접기 + 열면 표·그래프 (스크롤 가능하도록 컨테이너로) -----
+    n_idle = len(idle_periods)
+    with st.expander(f"비집중 구간 (탭 이탈 → 복귀) — {n_idle}회", expanded=False):
+        if not idle_periods:
+            st.caption("비집중 구간이 없거나, 아직 탭에 복귀하지 않은 상태일 수 있습니다.")
+        else:
+            st.caption("아래 표·그래프를 스크롤하여 확인하세요.")
+            rows = []
+            for i, (start_ts, end_ts) in enumerate(idle_periods[:50], 1):
+                dur = _idle_duration_minutes(start_ts, end_ts)
+                start_str = format_ts_kst(start_ts)
+                end_str = format_ts_kst(end_ts)
+                chart_label = f"{_format_time_only(start_ts)}→{_format_time_only(end_ts)}"
+                rows.append({
+                    "구간(나간→돌아온)": chart_label,
+                    "나간 시각": start_str,
+                    "돌아온 시각": end_str,
+                    "비집중(분)": round(dur, 1),
+                })
+            df = pd.DataFrame(rows)
+            st.dataframe(df[["나간 시각", "돌아온 시각", "비집중(분)"]], use_container_width=True, hide_index=True, height=280)
 
-        st.caption("**그래프**: 가로 = **비집중 구간**(나간 시각→돌아온 시각), 세로 = **몇 분 동안** 탭을 벗어났는지")
-        chart_df = df[["구간(나간→돌아온)", "비집중(분)"]].set_index("구간(나간→돌아온)")
-        st.bar_chart(chart_df)
+            st.caption("그래프: 가로 = 비집중 구간, 세로 = 분")
+            chart_df = df[["구간(나간→돌아온)", "비집중(분)"]].set_index("구간(나간→돌아온)")
+            st.bar_chart(chart_df)

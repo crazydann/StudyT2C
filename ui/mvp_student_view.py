@@ -183,6 +183,8 @@ def render_mvp_student_view(supabase, user: dict):
         _render_left_sidebar(str(student_id), student_handle, state)
 
     with col_center:
+        # 추천 공부 개념: 얇은 띠 배너 (AI 튜터 바로 위)
+        _render_recommended_concepts_banner(str(student_id), state)
         st.markdown("**🤖 AI 튜터**")
         render_center_panel(effective_user, str(student_id), state)
 
@@ -246,6 +248,53 @@ def _dialog_concept_explanation(concept_name: str) -> None:
         st.rerun()
 
 
+def _get_recommended_concepts(student_id: str) -> list:
+    """최근 채팅 기반 추천 공부 개념 목록."""
+    try:
+        chat_rows = list_chat_messages(student_id, limit=25)
+        chat_items = []
+        for r in chat_rows:
+            if (r.get("role") or "").strip().lower() != "user":
+                continue
+            content = r.get("content") or ""
+            meta = r.get("meta") or {}
+            answer = meta.get("answer") or ""
+            if content or answer:
+                chat_items.append({"question": content, "answer": answer})
+        return recommend_concepts_from_chat(chat_items, max_concepts=6) if chat_items else []
+    except Exception:
+        return []
+
+
+def _render_recommended_concepts_banner(student_id: str, state: dict) -> None:
+    """AI 튜터 위 얇은 띠 배너: 추천 공부 개념 (클릭 시 개념 설명 팝업)."""
+    concepts = _get_recommended_concepts(student_id)
+    if not concepts:
+        st.markdown(
+            '<div style="font-size:0.75rem;color:#64748b;padding:6px 10px;border-radius:6px;'
+            'background:#f8fafc;border:1px solid #e2e8f0;margin-bottom:6px;">'
+            "💡 <strong>추천 공부 개념</strong> — AI 튜터와 대화하면 여기에 추천 개념이 나타나요.</div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        n = min(6, len(concepts))
+        with st.container(border=True):
+            cols = st.columns([1] * (n + 1))
+            with cols[0]:
+                st.caption("💡 **추천**")
+            for i, c in enumerate(concepts[:n]):
+                with cols[i + 1]:
+                    label = (c[:8] + "…") if len(c) > 8 else c
+                    if st.button(label, key=f"mvp_banner_c_{student_id}_{i}", use_container_width=True):
+                        st.session_state["mvp_concept_popup"] = c
+                        st.rerun()
+    if st.session_state.get("mvp_concept_popup"):
+        try:
+            _dialog_concept_explanation(st.session_state["mvp_concept_popup"])
+        except TypeError:
+            st.session_state.pop("mvp_concept_popup", None)
+
+
 def _render_left_sidebar(student_id: str, student_handle: str, state: dict) -> None:
     """좌측: 질의 개념 복습·문제 만들기·지난 문제들·추천 공부 개념 (첨부 UI)."""
     st.markdown("**💡 질의 개념 복습**")
@@ -275,33 +324,7 @@ def _render_left_sidebar(student_id: str, student_handle: str, state: dict) -> N
         except TypeError:
             st.session_state.pop("mvp_retry_quiz_id", None)
 
-    st.markdown("**📚 추천 공부 개념**")
-    try:
-        chat_rows = list_chat_messages(student_id, limit=25)
-        chat_items = []
-        for r in chat_rows:
-            if (r.get("role") or "").strip().lower() != "user":
-                continue
-            content = r.get("content") or ""
-            meta = r.get("meta") or {}
-            answer = meta.get("answer") or ""
-            if content or answer:
-                chat_items.append({"question": content, "answer": answer})
-        concepts = recommend_concepts_from_chat(chat_items, max_concepts=6) if chat_items else []
-    except Exception:
-        concepts = []
-    if not concepts:
-        st.caption("AI 튜터와 대화하면 추천 개념이 나타나요.")
-    else:
-        for i, c in enumerate(concepts):
-            if st.button(f"· {c}", key=f"concept_btn_{student_id}_{i}", use_container_width=True):
-                st.session_state["mvp_concept_popup"] = c
-                st.rerun()
-    if st.session_state.get("mvp_concept_popup"):
-        try:
-            _dialog_concept_explanation(st.session_state["mvp_concept_popup"])
-        except TypeError:
-            st.session_state.pop("mvp_concept_popup", None)
+    st.caption("💡 추천 공부 개념은 AI 튜터 창 위 띠에서 확인하세요.")
 
 
 def _render_right_panel(user: dict, student_id: str, state: dict) -> None:

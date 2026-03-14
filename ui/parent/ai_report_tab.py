@@ -79,34 +79,36 @@ def render_ai_report_tab(student_id: str, student_handle: str = ""):
     except Exception as e:
         st.caption(f"리포트 로드 실패: {e}")
 
-    # 1) 공부 관련 질문/답변 이력
-    st.markdown("#### 📚 공부 관련 질문·답변 이력")
+    # 1) 공부 관련 질문/답변 이력 — 접기 + 내부 스크롤
     try:
         study = get_study_chat_history(student_id, lookback_days=30, limit=30)
         study_items = study.get("items", []) or []
     except Exception:
         study_items = []
 
-    if not study_items:
-        st.caption("최근 30일 공부 관련 질문 이력이 없습니다.")
-    else:
-        st.caption(f"최근 30일 공부 관련 질문·답변 {len(study_items)}건 — 어떤 부분을 물었고, 답변을 통해 학습 부족 부분을 확인·정리할 수 있어요.")
-        st.caption("💡 학습 부족 분석은 아래 과목별 성취도·AI 취약점과 함께 참고하세요.")
-        for it in study_items[:15]:
-            ts = format_ts_kst(it.get("created_at"))
-            subj = it.get("subject", "OTHER")
-            q = it.get("question", "")
-            a = it.get("answer", "")
-            with st.expander(f"{ts} · {subj} · {q[:40]}..." if len(q) > 40 else f"{ts} · {subj} · {q}"):
-                st.markdown("**질문**")
-                st.write(q)
-                if a:
-                    st.markdown("**답변**")
-                    st.write(a[:400] + ("..." if len(a) > 400 else ""))
+    with st.expander(f"질문 이력 (최근 30일) — {len(study_items)}건", expanded=False):
+        if not study_items:
+            st.caption("공부 관련 질문 이력이 없습니다.")
+        else:
+            st.caption("아래 영역에서 스크롤하여 개별 질문·답변을 확인하세요.")
+            parts = []
+            for it in study_items[:30]:
+                ts = format_ts_kst(it.get("created_at"))
+                subj = it.get("subject", "OTHER")
+                def _esc(s: str) -> str:
+                    return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;").replace("\n", "<br>")
+                q = _esc(it.get("question") or "")
+                raw_a = it.get("answer") or ""
+                a = _esc(raw_a[:400]) + ("..." if len(raw_a) > 400 else "")
+                if len((it.get("answer") or "")) > 400:
+                    a += "..."
+                parts.append(f"<div style='border-bottom:1px solid #eee;padding:8px 0;'><strong>{ts}</strong> · {subj}<br><strong>질문</strong> {q}<br><strong>답변</strong> {a}</div>")
+            st.markdown(
+                f'<div style="max-height: 380px; overflow-y: auto; padding: 4px;">{"".join(parts)}</div>',
+                unsafe_allow_html=True,
+            )
 
-    st.markdown("---")
-
-    # 2) 공부 외 질문 모니터링
+    # 2) 공부 외 질문 — 접기 + 내부 스크롤
     try:
         off = get_offtopic_chat_summary(student_id, lookback_days=7)
     except Exception:
@@ -114,37 +116,29 @@ def render_ai_report_tab(student_id: str, student_handle: str = ""):
 
     total_off = off.get("total", 0)
     by_cat = off.get("by_category", {}) or {}
+    items = (off.get("items") or [])[:20]
+    badge = " 🔴" if total_off >= 10 else " 🟠" if total_off >= 5 else ""
 
-    badge = ""
-    if total_off >= 10:
-        badge = " 🔴 경고"
-    elif total_off >= 5:
-        badge = " 🟠 주의"
-
-    with st.container(border=True):
+    with st.expander(f"공부 외 질문 (최근 7일){badge} — {total_off}건", expanded=False):
         if total_off == 0:
-            st.markdown("#### 🧠 공부 시간 AI 튜터 사용")
-            st.caption("최근 7일 동안 공부 시간 중 공부 외 질문 없이 잘 활용하고 있어요.")
+            st.caption("공부 시간 중 공부 외 질문 없이 잘 활용하고 있어요.")
         else:
-            st.markdown(f"#### ⚠️ 공부 외 질문{badge}")
-            parts = [f"{k}: {v}건" for k, v in by_cat.items()]
-            st.write(f"최근 7일 공부 시간 중 공부 외 질문: **{total_off}건** (공부 외 질문으로 정리·표기)")
-            if parts:
-                st.caption("유형별 분포: " + ", ".join(parts))
-
-    # 공부 외 질문 히스토리 (최근 10개)
-    items = (off.get("items") or [])[:10]
-    st.markdown("##### 공부 외 질문 히스토리 (최근)")
-    if not items:
-        st.caption("최근 7일 동안 공부 시간 중 공부 외 질문이 없습니다.")
-    else:
-        for it in items:
-            ts = format_ts_kst(it.get("created_at"))
-            cat = it.get("category") or "OTHER"
-            content = it.get("content") or ""
-            with st.container(border=True):
-                st.caption(f"{ts} · 유형: {cat}")
-                st.write(content)
+            if by_cat:
+                st.caption("유형: " + ", ".join(f"{k} {v}건" for k, v in by_cat.items()))
+            if not items:
+                st.caption("히스토리 없음.")
+            else:
+                st.caption("아래 스크롤로 개별 항목을 확인하세요.")
+                parts = []
+                for it in items:
+                    ts = format_ts_kst(it.get("created_at"))
+                    cat = (it.get("category") or "OTHER").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+                    content = (it.get("content") or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;").replace("\n", "<br>")
+                    parts.append(f"<div style='border-bottom:1px solid #eee;padding:6px 0;'><strong>{ts}</strong> · {cat}<br>{content}</div>")
+                st.markdown(
+                    f'<div style="max-height: 320px; overflow-y: auto; padding: 4px;">{"".join(parts)}</div>',
+                    unsafe_allow_html=True,
+                )
 
     st.markdown("---")
 

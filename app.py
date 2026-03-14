@@ -50,11 +50,63 @@ def apply_custom_css():
         div[data-testid="stExpander"] > div[role="button"] {
             font-size: 0.9rem;
         }
-        /* 6. 메인 카드 여백 */
+        /* 6. 메인 = 내용 위주: 카드 테두리 제거, 여백만 */
         div[data-testid="stVerticalBlockBorderWrapper"] {
-            border-radius: 10px;
-            padding: 1rem 1.25rem;
+            border: none;
+            border-radius: 8px;
+            padding: 0.75rem 0;
+            box-shadow: none;
         }
+        /* 7. 브라우저 탭 느낌: 탭 리스트를 상단 띠처럼 */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 0;
+            background: #f1f5f9;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 0 0 0 6px;
+            margin: 0 -1rem;
+            min-height: 40px;
+        }
+        .stTabs [data-baseweb="tab"] {
+            background: transparent;
+            border: 1px solid transparent;
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            padding: 8px 16px;
+            margin: 6px 2px 0 0;
+            font-size: 0.9rem;
+            height: auto;
+        }
+        .stTabs [data-baseweb="tab"]:first-child { margin-left: 0; }
+        .stTabs [aria-selected="true"] {
+            background: #fff !important;
+            border-color: #e2e8f0 !important;
+            border-bottom: 1px solid #fff !important;
+            margin-bottom: -1px;
+            font-weight: 600;
+        }
+        /* 8. 상단 탭 라디오(커스텀 탭바) 브라우저 탭 느낌 */
+        div[data-testid="stHorizontalBlock"] .stRadio > div {
+            flex-wrap: nowrap;
+            gap: 0;
+            background: #f1f5f9;
+            border-radius: 8px 8px 0 0;
+            padding: 4px 4px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        div[data-testid="stHorizontalBlock"] .stRadio label {
+            padding: 8px 14px;
+            border-radius: 6px 6px 0 0;
+            font-size: 0.9rem;
+            background: transparent;
+        }
+        div[data-testid="stHorizontalBlock"] .stRadio label[data-checked="true"] {
+            background: #fff !important;
+            font-weight: 600;
+            box-shadow: 0 -1px 0 #e2e8f0;
+        }
+        /* 9. 서브헤더·캡션 축소 → 내용 위주 */
+        h3 { font-size: 1.05rem !important; margin-top: 0.5rem !important; }
+        .stCaptionContainer { font-size: 0.8rem !important; }
         </style>
         """,
         unsafe_allow_html=True,

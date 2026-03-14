@@ -1,10 +1,8 @@
 import streamlit as st
 
-import config
 from ui.student_dashboard.panels_left import render_left_panel
 from ui.student_dashboard.panels_center import render_center_panel
 from ui.student_dashboard.panels_grading import render_grading_panel
-from ui.student_dashboard.focus_tracker_component import render_focus_tracker
 
 
 def _make_image_renderer(st_image_fullwidth):
@@ -42,14 +40,6 @@ def render_student_dashboard(
 
     st.markdown("### 📚 학습 대시보드")
     st.caption("오늘 할 일과 AI 튜터 대화, 채점 결과를 한눈에 볼 수 있는 화면입니다.")
-
-    try:
-        supabase_url = config.get_supabase_url()
-        anon_key = config.get_supabase_anon_key()
-        if supabase_url and anon_key:
-            render_focus_tracker(str(student_id), supabase_url, anon_key)
-    except Exception:
-        pass
 
     render_image = _make_image_renderer(st_image_fullwidth)
 

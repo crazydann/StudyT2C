@@ -1,10 +1,12 @@
 # ui/student/console.py
 import streamlit as st
 
+import config
 from ui.ui_common import get_role_state
 from ui.ui_errors import show_error
 
 from ui.student_dashboard import render_student_dashboard
+from ui.student_dashboard.focus_tracker_component import render_focus_tracker
 from ui.student_homework import render_student_homework
 from ui.student_wrongnote import render_student_wrongnote
 from ui.student_history import render_student_history
@@ -79,6 +81,15 @@ def render_student_console(supabase, user):
 
     # ✅ bool이 아니라 "함수"로 전달
     st_image_fullwidth = _make_st_image_helper()
+
+    # 탭과 무관하게 항상 포커스 트래커 주입 (탭 이탈 후 복귀 시 팝업)
+    try:
+        supabase_url = config.get_supabase_url()
+        anon_key = config.get_supabase_anon_key()
+        if supabase_url and anon_key and student_id:
+            render_focus_tracker(str(student_id), supabase_url, anon_key)
+    except Exception:
+        pass
 
     with page_card():
         t1, t2, t3, t4 = st.tabs(["🏠 대시보드", "📚 내 숙제", "📝 오답노트", "🕓 기록"])

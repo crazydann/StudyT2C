@@ -9,9 +9,11 @@ def render_student_list(state, student_ids, handle_map):
     - 학생을 선택하고 '학생 보기' 버튼을 눌러야 상세로 이동
     """
     st.subheader("학생 선택")
+    st.caption("👉 학생을 선택한 뒤 **학생 보기**를 누르면 AI 분석·상담·숙제·리포트를 볼 수 있어요.")
 
     if not student_ids:
         st.info("연결된 학생이 없습니다.")
+        st.caption("👉 관리자(admin) 화면에서 데모 데이터를 생성하거나, DB에 학생·선생 연결을 추가하면 여기에 표시됩니다.")
         return
 
     options = ["(선택 안 함)"] + [str(sid) for sid in student_ids]

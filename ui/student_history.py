@@ -86,6 +86,7 @@ def render_student_history(
     # ✅ 핵심: 데이터 0건이면 에러가 아니라 안내
     if not subs:
         st.info("아직 채점한 숙제가 없어요. 숙제를 제출하고 채점을 진행해보세요 🙂")
+        st.caption("👉 **대시보드** 탭에서 오른쪽 **문제 채점기**로 이동해 이미지/PDF를 올리고 **AI 채점 요청**을 하면 여기에 기록이 쌓여요.")
         return
 
     st.subheader("채점 히스토리")

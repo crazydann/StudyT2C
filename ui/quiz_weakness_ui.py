@@ -27,6 +27,7 @@ def render_quiz_weakness_section(student_id: str, student_handle: str, lookback_
         stats = {"total": 0, "correct": 0, "wrong": 0, "accuracy_pct": 0}
     if stats["total"] == 0:
         st.caption("아직 질의개념복습 풀이 이력이 없습니다. 학생이 로그인학생 화면에서 복습 문제를 풀면 여기에 통계와 AI 취약점 분석이 나타납니다.")
+        st.caption("👉 **오답노트**에서 연습문제를 만들고 풀면, 여기에 복습 통계가 쌓여요.")
         return
 
     c1, c2, c3 = st.columns(3)
@@ -37,18 +38,26 @@ def render_quiz_weakness_section(student_id: str, student_handle: str, lookback_
     with c3:
         st.metric("오답", f"{stats['wrong']}문항")
 
-    # 최근 7일 일별 복습 퀴즈 결과 (학생·학부모가 한눈에 추이를 볼 수 있게)
+    # 일별 복습 퀴즈 결과 (기간 선택 7/14/30일)
+    days_options = [7, 14, 30]
+    days_key = f"quiz_weakness_days_{student_id}"
+    selected_days = st.selectbox(
+        "일별 추이 기간",
+        options=days_options,
+        index=0,
+        format_func=lambda d: f"최근 {d}일",
+        key=days_key,
+    )
     try:
-        daily = get_concept_review_daily_stats(student_id, days=7)
+        daily = get_concept_review_daily_stats(student_id, days=selected_days)
     except Exception:
         daily = []
     if daily:
-        st.markdown("##### 📆 최근 7일 복습 퀴즈 결과")
+        st.markdown(f"##### 📆 최근 {selected_days}일 복습 퀴즈 결과")
         df = pd.DataFrame(daily)
-        # 날짜 순으로 정렬되어 있으므로 인덱스는 날짜로 설정
         chart_df = df.set_index("date")[["correct", "wrong"]]
         st.bar_chart(chart_df, use_container_width=True)
-        st.caption("초록=정답, 빨강=오답 (최근 7일 기준)")
+        st.caption("초록=정답, 빨강=오답")
 
     try:
         wrong_items = get_concept_review_wrong_items(student_id, limit=30)

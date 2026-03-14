@@ -209,12 +209,15 @@ def render_student_homework(supabase, user, student_id: str, state: dict, st_ima
                         except TypeError:
                             st.image(norm_bytes, use_column_width=True)
 
-                    if st.button("제출하기", key=f"hw_submit_{student_id}_{aid_str}"):
-                        with st.spinner("업로드/제출 중..."):
-                            storage_url = upload_problem_image(student_id, norm_bytes, f"HW_{aid_str}_{norm_name}")
-                            _insert_submission(supabase, aid, student_id, storage_url)
-                        st.success("제출 완료 ✅")
-                        st.rerun()
+                    st.caption("제출하면 수정할 수 없습니다.")
+                    hw_confirm_key = f"hw_confirm_{student_id}_{aid_str}"
+                    if st.checkbox("제출할까요?", key=hw_confirm_key, value=False):
+                        if st.button("제출하기", key=f"hw_submit_{student_id}_{aid_str}"):
+                            with st.spinner("업로드/제출 중..."):
+                                storage_url = upload_problem_image(student_id, norm_bytes, f"HW_{aid_str}_{norm_name}")
+                                _insert_submission(supabase, aid, student_id, storage_url)
+                            st.success("제출 완료 ✅")
+                            st.rerun()
 
                 except Exception as e:
                     show_error(

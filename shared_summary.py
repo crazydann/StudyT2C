@@ -3,21 +3,37 @@ import pandas as pd
 from datetime import date
 import time
 
+from services.analytics_service import get_student_ai_learning_progress
+
+
 def render_shared_summary(supabase, student_id, student_handle, viewer_role, viewer_id):
     st.subheader(f"📊 {student_handle} 학생 종합 리포트")
-    
-    # 1) 핵심 지표 요약 (Mockup Data)
-    st.markdown("##### 📌 주간 학습 요약")
-    c1, c2, c3 = st.columns(3)
-    c1.metric("이번 주 숙제 진행률", "66%", "1건 미제출 (목표: 3건)")
-    c2.metric("복습 큐 소화율", "85%", "오늘 10문제 남음")
-    c3.metric("최근 정답률 추이", "72%", "-3% 하락")
-    
-    st.error("🚨 취약 개념 Top 1: **이차방정식의 근의 공식** (대표 오답 링크)")
-    st.info("🤖 AI 코멘트: 개념 적용은 잘하나 계산 실수가 반복됩니다. 오답 노트 복습이 필요합니다.")
+
+    # 1) AI 학습 진행도 (최근 7일 vs 이전 7일)
+    st.markdown("##### 📌 주간 학습 요약 (최근 7일 vs 이전 7일)")
+    try:
+        progress = get_student_ai_learning_progress(student_id)
+        chat = progress.get("chat") or {}
+        review_q = progress.get("review_quiz") or {}
+        grading = progress.get("vision_grading") or {}
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            d = chat.get("delta", 0)
+            st.metric("튜터 질문 수", f"{chat.get('recent', 0)}회", f"{d:+d}" if d else "—")
+        with c2:
+            pct = review_q.get("recent", {}).get("accuracy_pct") or 0
+            delta = review_q.get("delta_accuracy_pct") or 0
+            st.metric("복습 퀴즈 정답률", f"{pct}%", f"{delta:+.1f}%" if delta else "—")
+        with c3:
+            pct = grading.get("recent", {}).get("accuracy_pct") or 0
+            delta = grading.get("delta_accuracy_pct") or 0
+            st.metric("채점 정답률", f"{pct}%", f"{delta:+.1f}%" if delta else "—")
+        st.caption("지난 7일 대비 이전 7일과의 변화입니다.")
+    except Exception:
+        st.caption("학습 진행도 데이터를 불러오지 못했습니다.")
     st.divider()
 
-    # 2) Teacher Notes & Weekly Plan
+    # 2) Teacher Notes & Weekly Plan (취약 개념·AI 코멘트는 AI 분석 탭에서 확인)
     st.markdown("##### 📝 상담 기록 및 주간 계획")
     
     # DB에서 가장 최근 노트 및 플랜 가져오기

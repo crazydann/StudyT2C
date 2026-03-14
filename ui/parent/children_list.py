@@ -4,9 +4,11 @@ import streamlit as st
 
 def render_children_list(state: dict, children_ids, handle_map):
     st.subheader("👨‍👩‍👧‍👦 자녀 선택")
+    st.caption("👉 자녀를 선택한 뒤 **자녀 보기**를 누르면 집중 현황·취약점·알림 설정을 볼 수 있어요.")
 
     if not children_ids:
         st.info("연결된 자녀가 없습니다.")
+        st.caption("👉 선생님/관리자에게 자녀 계정 연결을 요청해 주세요. 연결되면 이 목록에서 자녀를 선택해 집중 현황·취약점·알림 설정을 볼 수 있어요.")
         return
 
     options = ["(선택 안 함)"] + [str(sid) for sid in children_ids]

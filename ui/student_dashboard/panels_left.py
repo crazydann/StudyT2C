@@ -3,6 +3,7 @@ import pandas as pd
 
 from services.analytics_service import (
     get_student_learning_status,
+    get_student_ai_learning_progress,
     get_subject_achievement,
     get_subject_weak_concepts,
 )
@@ -88,6 +89,30 @@ def render_left_panel(supabase, student_id: str):
 
     st.info(f"🚨 오늘의 복습: **{status_data.get('review_count', 0)}개**")
 
+    # 최근 7일 vs 이전 7일 AI 학습 진행도
+    try:
+        progress = get_student_ai_learning_progress(student_id)
+        chat = progress.get("chat") or {}
+        review_q = progress.get("review_quiz") or {}
+        grading = progress.get("vision_grading") or {}
+        if any([chat.get("recent") or chat.get("prev"), review_q.get("recent", {}).get("total"), review_q.get("prev", {}).get("total"), grading.get("recent", {}).get("total"), grading.get("prev", {}).get("total")]):
+            st.markdown("##### 📈 최근 7일 vs 이전 7일")
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                d = chat.get("delta", 0)
+                st.metric("튜터 질문", f"{chat.get('recent', 0)}회", f"{d:+d}" if d else "—")
+            with c2:
+                pct = review_q.get("recent", {}).get("accuracy_pct") or 0
+                delta = review_q.get("delta_accuracy_pct") or 0
+                st.metric("복습 퀴즈 정답률", f"{pct}%", f"{delta:+.1f}%" if delta else "—")
+            with c3:
+                pct = grading.get("recent", {}).get("accuracy_pct") or 0
+                delta = grading.get("delta_accuracy_pct") or 0
+                st.metric("채점 정답률", f"{pct}%", f"{delta:+.1f}%" if delta else "—")
+            st.caption("지난주 대비 변화입니다.")
+    except Exception:
+        pass
+
     subject_counts = status_data.get("subject_counts")
     if subject_counts:
         st.write("📈 **과목별 질문 비율**")
@@ -144,6 +169,10 @@ def render_left_panel(supabase, student_id: str):
     st.subheader("🎯 오늘의 복습 큐")
     if not reviews:
         st.caption("오늘은 복습 항목이 없어요.")
+        st.caption("👉 오답노트 탭에서 오답으로 연습문제를 만들거나, 아래 **AI 취약점 분석 보기**를 눌러 추천 복습을 확인해 보세요.")
+        if st.button("🧠 AI 취약점 분석 보기", key=f"ai_weak_btn_zero_{student_id}", use_container_width=True):
+            st.session_state[f"ai_weak_open_{student_id}"] = True
+            st.rerun()
         return
 
     for item in reviews:

@@ -63,6 +63,7 @@ def render_student_wrongnote(supabase, user, student_id: str, state: dict):
 
     if not graded:
         st.info("아직 채점된 기록이 없거나, 최근 채점 제출에서 오답 문항을 찾지 못했습니다.")
+        st.caption("👉 **대시보드** 탭에서 문제 사진을 올리고 **AI 채점**을 받으면 오답노트에 자동으로 쌓여요. 첫 채점을 올려 보세요.")
         return
 
     if not wrongs:
@@ -199,22 +200,24 @@ def render_student_wrongnote(supabase, user, student_id: str, state: dict):
 
             # practice_items 저장 (1회만)
             if pstate.get("practice_id") is None and pid:
-                if st.button("💾 연습문제 저장", key=f"save_pr_{key}"):
-                    try:
-                        saved = save_practice_item(
-                            problem_item_id=pid,
-                            student_id=student_id,
-                            question=pstate.get("q"),
-                            answer_key=pstate.get("answer_key"),
-                            concepts=pstate.get("key_concepts"),
-                        )
-                        pstate["practice_id"] = saved.get("id")
-                        practice_map[str(pid)] = pstate
-                        state["practice_by_problem"] = practice_map
-                        st.success("저장 완료")
-                        st.rerun()
-                    except Exception as e:
-                        show_error("연습문제 저장 실패", e, context="save_practice_item")
+                save_confirm_key = f"save_pr_confirm_{student_id}_{key}"
+                if st.checkbox("저장할까요? (한 번 저장하면 수정할 수 없습니다)", key=save_confirm_key, value=False):
+                    if st.button("💾 연습문제 저장", key=f"save_pr_{key}"):
+                        try:
+                            saved = save_practice_item(
+                                problem_item_id=pid,
+                                student_id=student_id,
+                                question=pstate.get("q"),
+                                answer_key=pstate.get("answer_key"),
+                                concepts=pstate.get("key_concepts"),
+                            )
+                            pstate["practice_id"] = saved.get("id")
+                            practice_map[str(pid)] = pstate
+                            state["practice_by_problem"] = practice_map
+                            st.success("저장 완료")
+                            st.rerun()
+                        except Exception as e:
+                            show_error("연습문제 저장 실패", e, context="save_practice_item")
 
             st.subheader("📝 답안 제출")
 
@@ -222,28 +225,30 @@ def render_student_wrongnote(supabase, user, student_id: str, state: dict):
             ans_key = f"ans_{student_id}_{practice_id or key}"
             student_ans = st.text_area("내 답", key=ans_key, height=120)
 
-            if st.button("✅ 채점/저장", key=f"grade_pr_{key}"):
-                if not practice_id or not pid:
-                    st.warning("먼저 '연습문제 저장'을 눌러야 결과를 저장할 수 있어요.")
-                else:
-                    ak = (pstate.get("answer_key") or "").strip()
-                    sa = (student_ans or "").strip()
-                    is_correct = False
-                    try:
-                        if ak and sa:
-                            is_correct = ak.lower() in sa.lower() or sa.lower() in ak.lower()
+            grade_confirm_key = f"grade_pr_confirm_{student_id}_{key}"
+            if st.checkbox("채점·저장할까요?", key=grade_confirm_key, value=False):
+                if st.button("✅ 채점/저장", key=f"grade_pr_{key}"):
+                    if not practice_id or not pid:
+                        st.warning("먼저 '연습문제 저장'을 눌러야 결과를 저장할 수 있어요.")
+                    else:
+                        ak = (pstate.get("answer_key") or "").strip()
+                        sa = (student_ans or "").strip()
+                        is_correct = False
+                        try:
+                            if ak and sa:
+                                is_correct = ak.lower() in sa.lower() or sa.lower() in ak.lower()
 
-                        update_practice_result(
-                            practice_id=practice_id,
-                            student_answer=student_ans,
-                            is_correct=is_correct,
-                            student_id=student_id,
-                            problem_item_id=pid,
-                        )
-                        st.success(f"저장 완료 ✅ ({'정답' if is_correct else '오답'})")
-                        st.rerun()
-                    except Exception as e:
-                        show_error("연습 결과 저장 실패", e, context="update_practice_result")
+                            update_practice_result(
+                                practice_id=practice_id,
+                                student_answer=student_ans,
+                                is_correct=is_correct,
+                                student_id=student_id,
+                                problem_item_id=pid,
+                            )
+                            st.success(f"저장 완료 ✅ ({'정답' if is_correct else '오답'})")
+                            st.rerun()
+                        except Exception as e:
+                            show_error("연습 결과 저장 실패", e, context="update_practice_result")
 
             st.subheader("📚 해설")
             if pstate.get("explanation"):

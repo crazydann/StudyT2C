@@ -28,6 +28,7 @@ def render_class_dashboard_tab(state: dict, student_ids, handle_map: dict):
     rows = get_class_dashboard_rows([str(sid) for sid in student_ids])
     if not rows:
         st.info("아직 충분한 데이터가 없어 반 대시보드를 구성하지 못했습니다.")
+        st.caption("👉 학생들이 숙제를 제출하고, 채점·복습 퀴즈를 하면 여기에 통계가 쌓입니다. 학생별 상세에서 진행 상황을 확인해 보세요.")
         return
 
     # 이름/핸들 붙이기

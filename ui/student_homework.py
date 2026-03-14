@@ -88,7 +88,14 @@ def _extract_reason_code(obj):
 
 
 def render_student_homework(supabase, user, student_id: str, state: dict, st_image_fullwidth=None):
-    st.subheader("📦 내 숙제")
+    st.subheader("내 숙제")
+
+    _msg_key = f"hw_submit_msg_{student_id}"
+    _sent = st.session_state.pop(_msg_key, None)
+    if _sent is True:
+        st.success("제출 완료. 선생님/학부모에게 알림을 보냈어요.")
+    elif _sent is False:
+        st.success("제출 완료.")
 
     assigns = _list_assignments(supabase, student_id)
     if not assigns:
@@ -216,12 +223,13 @@ def render_student_homework(supabase, user, student_id: str, state: dict, st_ima
                             with st.spinner("업로드/제출 중..."):
                                 storage_url = upload_problem_image(student_id, norm_bytes, f"HW_{aid_str}_{norm_name}")
                                 _insert_submission(supabase, aid, student_id, storage_url)
-                                send_homework_submitted_notification(
+                                notified = send_homework_submitted_notification(
                                     user.get("handle") or "학생",
                                     (aid.get("title") or "숙제").strip() or "숙제",
                                     student_id,
                                 )
-                            st.success("제출 완료 ✅")
+                            _key = f"hw_submit_msg_{student_id}"
+                            st.session_state[_key] = notified  # True: 알림 발송됨, False: 제출만
                             st.rerun()
 
                 except Exception as e:

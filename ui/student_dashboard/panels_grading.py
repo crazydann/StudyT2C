@@ -188,68 +188,79 @@ def render_grading_panel(user: dict, student_id: str, state: dict, render_image,
                 st.rerun()
                 return
 
-            with st.spinner("AI 분석 중..."):
-                storage_url = upload_problem_image(student_id, view_bytes, norm_name)
-                items: List[Dict[str, Any]] = grade_image_to_items(storage_url)
-
-                try:
-                    sub_row = upsert_problem_submission(
-                        student_user_id=str(student_id),
-                        file_hash=str(file_hash),
-                        file_name=str(norm_name),
-                        storage_path=str(storage_url),
-                        storage_url=str(storage_url),
-                        status="graded",
-                    )
-                    submission_id = sub_row.get("id")
-                    if not submission_id:
-                        raise ValueError("upsert_problem_submission returned without id")
-
-                    save_grading_results(
-                        submission_id=str(submission_id),
-                        student_user_id=str(student_id),
-                        items=items,
-                    )
-
-                    state["graded_items"] = items
-                    state["pending_save"] = None
+            try:
+                with st.spinner("AI 분석 중..."):
+                    storage_url = upload_problem_image(student_id, view_bytes, norm_name)
+                    items = grade_image_to_items(storage_url)
+            except Exception as grade_err:
+                persist_last_error(student_id, "채점 요청 실패", "upload/grade_image", grade_err)
+                show_error("채점 요청 실패", grade_err, context="upload_problem_image/grade_image_to_items", show_trace=False)
+                if st.button("다시 시도", key=f"grade_retry_{student_id}_{file_hash}"):
                     clear_last_error(student_id)
-
-                    st.success("✅ 채점 완료 + 저장 완료")
                     st.rerun()
-                    return
+                _render_items(user, state.get("graded_items") or [])
+                return
 
-                except Exception as e:
-                    submission_id = locals().get("submission_id", None)
-                    state["pending_save"] = {
-                        "student_id": str(student_id),
-                        "file_hash": str(file_hash),
-                        "file_bytes": view_bytes,
-                        "file_name": str(norm_name),
-                        "storage_url": str(storage_url),
-                        "items": items,
+            try:
+                sub_row = upsert_problem_submission(
+                    student_user_id=str(student_id),
+                    file_hash=str(file_hash),
+                    file_name=str(norm_name),
+                    storage_path=str(storage_url),
+                    storage_url=str(storage_url),
+                    status="graded",
+                )
+                submission_id = sub_row.get("id")
+                if not submission_id:
+                    raise ValueError("upsert_problem_submission returned without id")
+
+                save_grading_results(
+                    submission_id=str(submission_id),
+                    student_user_id=str(student_id),
+                    items=items,
+                )
+
+                state["graded_items"] = items
+                state["pending_save"] = None
+                clear_last_error(student_id)
+
+                st.success("✅ 채점 완료 + 저장 완료")
+                st.rerun()
+                return
+
+            except Exception as e:
+                submission_id = locals().get("submission_id", None)
+                state["pending_save"] = {
+                    "student_id": str(student_id),
+                    "file_hash": str(file_hash),
+                    "file_bytes": view_bytes,
+                    "file_name": str(norm_name),
+                    "storage_url": str(storage_url),
+                    "items": items,
+                    "submission_id": submission_id,
+                }
+
+                persist_last_error(student_id, "저장 단계 실패(재시도 가능)", "save_grading_results", e)
+                show_error("저장 단계 실패(재시도 가능)", e, context="save_grading_results", show_trace=False)
+
+                _dev_debug_box(
+                    student_id,
+                    "grading save fail debug",
+                    {
+                        "student_id": student_id,
+                        "file_hash": file_hash,
+                        "norm_name": norm_name,
+                        "storage_url": storage_url,
                         "submission_id": submission_id,
-                    }
+                        "items_count": len(items or []),
+                        "cached_found": bool(cached),
+                        "exception": f"{type(e).__name__}: {e}",
+                    },
+                )
 
-                    persist_last_error(student_id, "저장 단계 실패(재시도 가능)", "save_grading_results", e)
-                    show_error("저장 단계 실패(재시도 가능)", e, context="save_grading_results", show_trace=False)
+                st.warning("위의 '저장 재시도' 버튼으로 이어서 저장할 수 있어요.")
 
-                    _dev_debug_box(
-                        student_id,
-                        "grading save fail debug",
-                        {
-                            "student_id": student_id,
-                            "file_hash": file_hash,
-                            "norm_name": norm_name,
-                            "storage_url": storage_url,
-                            "submission_id": submission_id,
-                            "items_count": len(items or []),
-                            "cached_found": bool(cached),
-                            "exception": f"{type(e).__name__}: {e}",
-                        },
-                    )
-
-                    st.warning("위의 '저장 재시도' 버튼으로 이어서 저장할 수 있어요.")
+            _render_items(user, state.get("graded_items") or [])
 
         _render_items(user, state.get("graded_items") or [])
 

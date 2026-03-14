@@ -74,8 +74,11 @@ def render_left_panel(supabase, student_id: str):
         g_tgt = goal.get("target_grading", 1)
         c_done = goal.get("chat_count", 0)
         c_tgt = goal.get("target_chat", 5)
+        goal_done = (g_done >= g_tgt) and (c_done >= c_tgt)
         st.markdown("**오늘 목표**")
         st.caption(f"채점 {min(g_done, g_tgt)}/{g_tgt}회 · 질문 {min(c_done, c_tgt)}/{c_tgt}개")
+        if goal_done:
+            st.success("오늘 목표 달성")
         if streak > 0:
             st.caption(f"🔥 **{streak}일** 연속 학습")
 

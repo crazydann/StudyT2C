@@ -46,6 +46,11 @@ def render_chat_panel(user: dict, student_id: str, state: dict) -> None:
 
             st.markdown(ans)
             st.caption(f"분류된 과목: {subj_class.get('subject', 'OTHER')}")
+            if ans == "AI 튜터 연결 오류":
+                if st.button("다시 시도", key=f"chat_retry_{student_id}"):
+                    if len(state.get("messages", [])) >= 2:
+                        state["messages"] = state["messages"][:-2]
+                    st.rerun()
 
     state["messages"].append({"role": "assistant", "content": ans})
     try:

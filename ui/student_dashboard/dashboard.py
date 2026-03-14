@@ -38,8 +38,8 @@ def render_student_dashboard(
     state.setdefault("graded_items", [])
     state.setdefault("pending_save", None)
 
-    st.markdown("### 학습 대시보드")
-    st.caption("오늘 목표는 왼쪽, AI 튜터·채점은 가운데·오른쪽에서 이용하세요.")
+    st.markdown("### 대시보드")
+    st.caption("왼쪽: 목표·복습 | 가운데: AI 튜터 | 오른쪽: 채점")
 
     render_image = _make_image_renderer(st_image_fullwidth)
 

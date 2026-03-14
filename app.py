@@ -42,15 +42,18 @@ def apply_custom_css():
             box-shadow: 0 4px 8px rgba(15, 23, 42, 0.16);
         }
 
-        /* 5. Expander를 카드처럼 보이게 */
+        /* 5. Expander·카드 정리 */
         div[data-testid="stExpander"] {
-            border-radius: 10px;
+            border-radius: 8px;
             border: 1px solid #e2e8f0;
-            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
-            background-color: #ffffff;
         }
         div[data-testid="stExpander"] > div[role="button"] {
-            background-color: #f8fafc;
+            font-size: 0.9rem;
+        }
+        /* 6. 메인 카드 여백 */
+        div[data-testid="stVerticalBlockBorderWrapper"] {
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
         }
         </style>
         """,
@@ -135,20 +138,15 @@ def _badge(text: str, bg: str = "#1f2937"):
 
 
 def _refresh_button():
-    c1, c2 = st.sidebar.columns([1, 1])
-    with c1:
-        if st.button("🔄 새로고침", use_container_width=True):
+    if st.sidebar.button("🔄 새로고침", use_container_width=True):
+        try:
+            fetch_users_cached.clear()
+        except Exception:
             try:
-                fetch_users_cached.clear()
+                st.cache_data.clear()
             except Exception:
-                # 구버전 호환
-                try:
-                    st.cache_data.clear()
-                except Exception:
-                    pass
-            st.rerun()
-    with c2:
-        st.caption("ttl=10s")
+                pass
+        st.rerun()
 
 
 def _sync_current_user_with_latest(users: list):
@@ -175,17 +173,19 @@ def _sync_current_user_with_latest(users: list):
 
 
 def sidebar_account_picker(users):
-    st.sidebar.title("🔐 계정 선택 (MVP)")
-    st.sidebar.caption("학생 로그인 화면: 앱 기본 URL 또는 ?app=student")
+    st.sidebar.title("StudyT2C")
+    st.sidebar.caption("계정 선택")
     _refresh_button()
 
     role_filter = st.sidebar.radio(
-        "Role",
-        options=["ALL", "student", "parent", "teacher"],
+        "역할",
+        options=["전체", "student", "parent", "teacher"],
         index=0,
         horizontal=False,
     )
-    q = st.sidebar.text_input("검색(handle)", value="", placeholder="예) minsu")
+    if role_filter == "전체":
+        role_filter = "ALL"
+    q = st.sidebar.text_input("검색", value="", placeholder="이름 검색")
 
     def match(u):
         if role_filter != "ALL" and u["role"] != role_filter:
@@ -238,22 +238,9 @@ def sidebar_account_picker(users):
 
     st.sidebar.divider()
 
-    # ✅ 상태 배지(요약)
-    st.sidebar.subheader("📌 현재 상태")
-    _badge(f"@{selected_user['handle']}", bg="#0f766e")
-    _badge(f"role: {selected_user['role']}", bg="#334155")
+    st.sidebar.caption(f"**{selected_user['handle']}** · {selected_user['role']}")
 
-    mode = selected_user.get("status") or "break"
-    _badge(f"mode: {mode}", bg="#16a34a" if mode == "studying" else "#f59e0b")
-
-    dp = bool(selected_user.get("detail_permission", False))
-    spa = bool(selected_user.get("show_practice_answer", False))
-    _badge(f"detail: {'ON' if dp else 'OFF'}", bg="#4f46e5" if dp else "#6b7280")
-    _badge(f"answer: {'ON' if spa else 'OFF'}", bg="#4f46e5" if spa else "#6b7280")
-
-    st.sidebar.caption("※ 권한/모드는 Parent 화면에서 변경됩니다.")
-
-    if st.sidebar.button("로그아웃(선택 해제)", use_container_width=True):
+    if st.sidebar.button("다른 계정 선택", use_container_width=True):
         st.session_state.pop("current_user", None)
         st.rerun()
 
@@ -363,8 +350,8 @@ def main():
 
     role = current_user.get("role")
 
-    st.title("StudyT2C (MVP)")
-    st.caption(f"현재 계정: {current_user.get('handle')} · role={role}")
+    st.title("StudyT2C")
+    st.caption(f"{current_user.get('handle')} · {role}")
 
     route_to_ui(role, current_user)
 

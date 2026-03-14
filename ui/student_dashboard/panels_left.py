@@ -93,75 +93,57 @@ def render_left_panel(supabase, student_id: str):
         reviews = []
         review_count = 0
 
-    st.subheader("내 학습 현황")
     try:
         status_data = get_student_learning_status(student_id)
     except Exception as e:
         show_error("학습 현황 로드 실패", e, context="get_student_learning_status", show_trace=False)
         status_data = {"review_count": 0, "subject_counts": {}}
 
-    st.caption(f"오늘 복습 {status_data.get('review_count', 0)}개")
+    st.caption(f"오늘 복습 **{status_data.get('review_count', 0)}**개")
 
-    # 최근 7일 vs 이전 7일 AI 학습 진행도
-    try:
-        progress = get_student_ai_learning_progress(student_id)
-        chat = progress.get("chat") or {}
-        review_q = progress.get("review_quiz") or {}
-        grading = progress.get("vision_grading") or {}
-        if any([chat.get("recent") or chat.get("prev"), review_q.get("recent", {}).get("total"), review_q.get("prev", {}).get("total"), grading.get("recent", {}).get("total"), grading.get("prev", {}).get("total")]):
-            st.markdown("##### 📈 최근 7일 vs 이전 7일")
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                d = chat.get("delta", 0)
-                st.metric("튜터 질문", f"{chat.get('recent', 0)}회", f"{d:+d}" if d else "—")
-            with c2:
-                pct = review_q.get("recent", {}).get("accuracy_pct") or 0
-                delta = review_q.get("delta_accuracy_pct") or 0
-                st.metric("복습 퀴즈 정답률", f"{pct}%", f"{delta:+.1f}%" if delta else "—")
-            with c3:
-                pct = grading.get("recent", {}).get("accuracy_pct") or 0
-                delta = grading.get("delta_accuracy_pct") or 0
-                st.metric("채점 정답률", f"{pct}%", f"{delta:+.1f}%" if delta else "—")
-    except Exception:
-        pass
-
-    subject_counts = status_data.get("subject_counts")
-    if subject_counts:
-        st.write("📈 **과목별 질문 비율**")
-        chart_data = pd.DataFrame(list(subject_counts.items()), columns=["과목", "질문수"]).set_index("과목")
-        st.bar_chart(chart_data)
-
-    # 과목별 성취도 요약 (간단 버전)
-    try:
-        ach = get_subject_achievement(student_id, lookback_days=30)
-        subs = ach.get("subjects", []) or []
-        if subs:
-            st.markdown("#### 과목별 성취도 요약")
-            for s in subs:
-                label = s.get("label")
-                score = int(s.get("score") or 0)
-                st.markdown(f"- **{label}**: {score}점")
-    except Exception:
-        pass
-
-    # 마스터리·진행 레벨 (Practiced → Mastered)
-    try:
-        mastery = get_subject_mastery_levels(student_id, lookback_days=30)
-        levels = mastery.get("subject_levels") or []
-        if levels:
-            st.markdown("#### 과목별 진행 레벨")
-            for s in levels:
+    with st.expander("상세 통계", expanded=False):
+        try:
+            progress = get_student_ai_learning_progress(student_id)
+            chat = progress.get("chat") or {}
+            review_q = progress.get("review_quiz") or {}
+            grading = progress.get("vision_grading") or {}
+            if any([chat.get("recent") or chat.get("prev"), review_q.get("recent", {}).get("total"), grading.get("recent", {}).get("total")]):
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    st.metric("튜터 질문", f"{chat.get('recent', 0)}회", f"{chat.get('delta', 0):+d}" if chat.get("delta") else "—")
+                with c2:
+                    pct = review_q.get("recent", {}).get("accuracy_pct") or 0
+                    st.metric("복습 퀴즈", f"{pct}%", f"{review_q.get('delta_accuracy_pct') or 0:+.1f}%" if review_q.get("delta_accuracy_pct") else "—")
+                with c3:
+                    pct = grading.get("recent", {}).get("accuracy_pct") or 0
+                    st.metric("채점", f"{pct}%", f"{grading.get('delta_accuracy_pct') or 0:+.1f}%" if grading.get("delta_accuracy_pct") else "—")
+        except Exception:
+            pass
+        subject_counts = status_data.get("subject_counts")
+        if subject_counts:
+            chart_data = pd.DataFrame(list(subject_counts.items()), columns=["과목", "질문수"]).set_index("과목")
+            st.bar_chart(chart_data)
+        try:
+            ach = get_subject_achievement(student_id, lookback_days=30)
+            subs = ach.get("subjects", []) or []
+            if subs:
+                for s in subs:
+                    st.caption(f"**{s.get('label')}**: {int(s.get('score') or 0)}점")
+        except Exception:
+            pass
+        try:
+            mastery = get_subject_mastery_levels(student_id, lookback_days=30)
+            for s in mastery.get("subject_levels") or []:
                 if s.get("level") == "none":
                     continue
-                label = s.get("label")
-                level_ko = "마스터" if s.get("level") == "mastered" else "연습 중"
-                st.caption(f"**{label}**: {level_ko}")
-    except Exception:
-        pass
+                level_ko = "마스터" if s.get("level") == "mastered" else "연습"
+                st.caption(f"**{s.get('label')}**: {level_ko}")
+        except Exception:
+            pass
 
     st.divider()
-    st.subheader("AI 취약점 분석")
-    expand_weak = st.button("AI 취약점 분석 보기", key=f"ai_weak_btn_{student_id}", use_container_width=True)
+    st.subheader("AI 취약점")
+    expand_weak = st.button("취약점 보기", key=f"ai_weak_btn_{student_id}", use_container_width=True)
     key_open = f"ai_weak_open_{student_id}"
     if expand_weak:
         st.session_state[key_open] = True
@@ -189,11 +171,11 @@ def render_left_panel(supabase, student_id: str):
             st.session_state[key_open] = False
             st.rerun()
 
-    st.write("---")
+    st.divider()
     st.subheader("오늘의 복습")
     if not reviews:
-        st.caption("복습할 항목이 없습니다. 오답노트에서 연습문제를 만들거나 AI 취약점 분석을 확인해 보세요.")
-        if st.button("AI 취약점 분석 보기", key=f"ai_weak_btn_zero_{student_id}", use_container_width=True):
+        st.caption("복습할 항목이 없습니다.")
+        if st.button("취약점 보기", key=f"ai_weak_btn_zero_{student_id}", use_container_width=True):
             st.session_state[f"ai_weak_open_{student_id}"] = True
             st.rerun()
         return

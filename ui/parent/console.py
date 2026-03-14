@@ -10,7 +10,8 @@ from ui.parent.student_detail import render_student_detail
 def render_parent_console(supabase, user):
     if "dev_mode" not in st.session_state:
         st.session_state["dev_mode"] = False
-    st.toggle("🧪 개발 모드", key="dev_mode")
+    with st.expander("설정", expanded=False):
+        st.toggle("개발 모드", key="dev_mode")
 
     parent_id = user["id"]
     state = get_role_state("parent", parent_id)

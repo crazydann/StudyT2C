@@ -14,38 +14,39 @@ def render_teacher_console(supabase, user):
     if "dev_mode" not in st.session_state:
         st.session_state["dev_mode"] = False
     with st.sidebar:
-        st.toggle("개발 모드", key="dev_mode")
+        with st.expander("설정", expanded=False):
+            st.toggle("개발 모드", key="dev_mode")
 
     teacher_id = user.get("id")
     teacher_handle = user.get("handle") or "teacher"
     render_app_header("선생님", teacher_handle)
 
     with page_card():
-        st.markdown("#### 반 관리")
         if bool(st.session_state.get("dev_mode", False)):
-            c_seed, c_del = st.columns(2)
-            with c_seed:
-                if st.button("데모 데이터 생성", key="t_seed_demo"):
-                    try:
-                        info = seed_demo_basic()
-                        st.success(
-                            f"데모 유저 생성 완료: teacher={info['teacher']['handle']}, "
-                            f"student={info['student']['handle']}, parent={info['parent']['handle']}"
-                        )
-                    except Exception as e:
-                        st.error(f"데모 데이터 생성 실패: {e}")
-            with c_del:
-                if st.button("데모 데이터 삭제", key="t_delete_demo", type="secondary"):
-                    try:
-                        result = delete_demo_data()
-                        if result.get("ok"):
-                            st.success(result.get("message", "삭제 완료."))
-                            if result.get("deleted"):
-                                st.caption(str(result["deleted"]))
-                        else:
-                            st.error(result.get("message", "삭제 실패."))
-                    except Exception as e:
-                        st.error(f"데모 데이터 삭제 실패: {e}")
+            with st.expander("개발자 도구", expanded=False):
+                c_seed, c_del = st.columns(2)
+                with c_seed:
+                    if st.button("데모 데이터 생성", key="t_seed_demo"):
+                        try:
+                            info = seed_demo_basic()
+                            st.success(
+                                f"데모 유저 생성 완료: teacher={info['teacher']['handle']}, "
+                                f"student={info['student']['handle']}, parent={info['parent']['handle']}"
+                            )
+                        except Exception as e:
+                            st.error(f"데모 데이터 생성 실패: {e}")
+                with c_del:
+                    if st.button("데모 데이터 삭제", key="t_delete_demo", type="secondary"):
+                        try:
+                            result = delete_demo_data()
+                            if result.get("ok"):
+                                st.success(result.get("message", "삭제 완료."))
+                                if result.get("deleted"):
+                                    st.caption(str(result["deleted"]))
+                            else:
+                                st.error(result.get("message", "삭제 실패."))
+                        except Exception as e:
+                            st.error(f"데모 데이터 삭제 실패: {e}")
 
         state = get_role_state("teacher", teacher_id)
         state.setdefault("selected_student", None)
@@ -53,7 +54,7 @@ def render_teacher_console(supabase, user):
         student_ids = fetch_teacher_student_ids(supabase, teacher_id)
         handle_map = fetch_user_handles_by_ids(supabase, student_ids)
 
-        tab_dash, tab_students = st.tabs(["📊 반 대시보드", "👩‍🎓 학생별 상세"])
+        tab_dash, tab_students = st.tabs(["반 대시보드", "학생별 상세"])
 
         with tab_dash:
             render_class_dashboard_tab(state, student_ids, handle_map)

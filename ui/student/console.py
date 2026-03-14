@@ -72,9 +72,9 @@ def render_student_console(supabase, user):
     if "st_image_fullwidth" not in st.session_state:
         st.session_state["st_image_fullwidth"] = True
     with st.sidebar:
-        st.caption("설정")
-        st.toggle("개발 모드", key="dev_mode")
-        st.toggle("이미지 크게 보기", key="st_image_fullwidth")
+        with st.expander("설정", expanded=False):
+            st.toggle("개발 모드", key="dev_mode")
+            st.toggle("이미지 크게 보기", key="st_image_fullwidth")
 
     render_app_header("학생", student_handle)
 
@@ -91,7 +91,7 @@ def render_student_console(supabase, user):
         pass
 
     with page_card():
-        t1, t2, t3, t4 = st.tabs(["🏠 대시보드", "📚 내 숙제", "📝 오답노트", "🕓 기록"])
+        t1, t2, t3, t4 = st.tabs(["학습", "숙제", "오답노트", "기록"])
 
         with t1:
             try:

@@ -20,18 +20,13 @@ def _avatar_circle(handle: str | None) -> None:
 
 
 def render_app_header(role_label: str, user_handle: str | None = "") -> None:
-    """상단 공통 헤더: 로고 + 역할 + 문의하기 + 아바타."""
+    """상단 공통 헤더: 로고 + 역할."""
     with st.container():
-        left, mid, right = st.columns([5, 3, 2])
+        left, right = st.columns([6, 1])
         with left:
             st.markdown(
-                f"<span style='font-size:22px;font-weight:700;'>StudyT2C</span>"
-                f" <span style='font-size:14px;color:#64748b;'>· {role_label}</span>",
-                unsafe_allow_html=True,
-            )
-        with mid:
-            st.markdown(
-                "<a href='mailto:?subject=StudyT2C 문의' style='font-size:13px;color:#64748b;text-decoration:none;'>문의하기</a>",
+                f"<span style='font-size:20px;font-weight:600;'>StudyT2C</span>"
+                f" <span style='font-size:13px;color:#64748b;'>· {role_label}</span>",
                 unsafe_allow_html=True,
             )
         with right:

@@ -649,7 +649,7 @@ def get_class_dashboard_rows(student_ids: List[str]) -> List[Dict[str, Any]]:
 
 
 # ---------------------------
-# 과목별 성취도 (MVP + 데모용)
+# 과목별 성취도 (실제 데이터만 사용)
 # ---------------------------
 _SUBJECT_LABELS = {
     "KOREAN": "국어",
@@ -661,8 +661,8 @@ _SUBJECT_LABELS = {
 
 def get_subject_achievement(student_id: str, lookback_days: int = 30) -> Dict[str, Any]:
     """
-    숙제, 채점, 질문 데이터를 종합한 과목별 성취도 개략치.
-    - 실제 데이터가 부족하면 데모용 고정 값으로 채워준다.
+    채점(problem_items)·질문(chat_messages) 데이터만으로 과목별 성취도 산출.
+    해당 과목에 채점 데이터가 없으면 정답률 0, 점수는 질문 수만 반영(최대 20점).
     """
     subjects = list(_SUBJECT_LABELS.keys())
 
@@ -713,7 +713,7 @@ def get_subject_achievement(student_id: str, lookback_days: int = 30) -> Dict[st
         if code in subjects:
             by_sub_q[code] += 1
 
-    # 3) 점수 산출 (없으면 데모 값)
+    # 3) 점수 산출 (실제 데이터만: 채점 없으면 정답률 0, 질문 수만 반영)
     data: List[Dict[str, Any]] = []
     for code in subjects:
         total = by_sub_total.get(code, 0)
@@ -721,16 +721,10 @@ def get_subject_achievement(student_id: str, lookback_days: int = 30) -> Dict[st
         if total > 0:
             correct_rate = (total - wrong) / total
         else:
-            correct_rate = None
+            correct_rate = 0.0
 
         q_cnt = by_sub_q.get(code, 0)
-
-        if correct_rate is None:
-            # 데이터 부족: 데모용 기본값
-            demo_scores = {"MATH": 0.88, "ENGLISH": 0.72, "KOREAN": 0.55, "SCIENCE": 0.68}
-            correct_rate = demo_scores.get(code, 0.7)
-
-        # 간단한 스코어: 정답률과 질문수(활동량)을 같이 반영
+        # 정답률 80점 + 질문 수(활동량) 최대 20점
         score = int(correct_rate * 80 + min(q_cnt, 20) * 1)
 
         data.append(
@@ -742,15 +736,6 @@ def get_subject_achievement(student_id: str, lookback_days: int = 30) -> Dict[st
                 "question_count": int(q_cnt),
             }
         )
-
-    if not data:
-        # 극단적으로 아무 데이터도 없을 때의 전체 데모
-        data = [
-            {"code": "MATH", "label": "수학", "score": 88, "correct_rate": 0.88, "question_count": 10},
-            {"code": "ENGLISH", "label": "영어", "score": 72, "correct_rate": 0.72, "question_count": 8},
-            {"code": "KOREAN", "label": "국어", "score": 55, "correct_rate": 0.55, "question_count": 5},
-            {"code": "SCIENCE", "label": "과학", "score": 68, "correct_rate": 0.68, "question_count": 7},
-        ]
 
     avg_score = sum(d["score"] for d in data) / len(data) if data else 0
     total_questions = sum(d["question_count"] for d in data)
@@ -801,14 +786,6 @@ def get_subject_weak_concepts(student_id: str, lookback_days: int = 30, top_per_
     for code, cnt in by_subject.items():
         label = _SUBJECT_LABELS.get(code, code)
         weak_by_label[label] = [k for k, _ in cnt.most_common(top_per_subject)]
-
-    if not weak_by_label:
-        weak_by_label = {
-            "수학": ["함수 그래프", "방정식", "기하"],
-            "영어": ["관계대명사", "시제 일치", "전치사"],
-            "국어": ["주술 호응", "문법", "독해"],
-            "과학": ["화학반응", "힘과 운동", "생태계"],
-        }
 
     return {"subjects": weak_by_label, "lookback_days": lookback_days}
 

@@ -25,6 +25,17 @@ def render_login_page() -> bool:
         if not (login_id and password):
             st.error("아이디와 비밀번호를 입력해 주세요.")
             return False
+        # admin / admin → 계정 선택(admin) 화면으로 전환
+        if login_id.strip().lower() == "admin" and password == "admin":
+            st.session_state["_student_login_mode"] = False
+            try:
+                st.query_params["app"] = "admin"
+            except Exception:
+                try:
+                    st.experimental_set_query_params(app="admin")
+                except Exception:
+                    pass
+            st.rerun()
         user = verify_login(login_id, password)
         if user:
             st.session_state["mvp_user"] = user
@@ -33,5 +44,5 @@ def render_login_page() -> bool:
         else:
             st.error("아이디 또는 비밀번호가 올바르지 않습니다.")
 
-    st.caption("관리자(계정 선택) 화면: 주소 뒤에 **?app=admin** 을 붙여 접속하세요.")
+    st.caption("관리자(계정 선택) 화면: 아이디·비밀번호 **admin** 으로 로그인하거나, 주소 뒤에 **?app=admin** 을 붙여 접속하세요.")
     return False

@@ -6,6 +6,7 @@ from services.analytics_service import (
     get_student_ai_learning_progress,
     get_subject_achievement,
     get_subject_weak_concepts,
+    get_subject_mastery_levels,
     get_today_goal_progress,
     get_streak_days,
 )
@@ -140,6 +141,21 @@ def render_left_panel(supabase, student_id: str):
                 label = s.get("label")
                 score = int(s.get("score") or 0)
                 st.markdown(f"- **{label}**: {score}점")
+    except Exception:
+        pass
+
+    # 마스터리·진행 레벨 (Practiced → Mastered)
+    try:
+        mastery = get_subject_mastery_levels(student_id, lookback_days=30)
+        levels = mastery.get("subject_levels") or []
+        if levels:
+            st.markdown("#### 과목별 진행 레벨")
+            for s in levels:
+                if s.get("level") == "none":
+                    continue
+                label = s.get("label")
+                level_ko = "마스터" if s.get("level") == "mastered" else "연습 중"
+                st.caption(f"**{label}**: {level_ko}")
     except Exception:
         pass
 

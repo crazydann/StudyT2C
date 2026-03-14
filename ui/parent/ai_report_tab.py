@@ -6,6 +6,8 @@ from services.analytics_service import (
     get_subject_achievement,
     get_offtopic_chat_summary,
     get_study_chat_history,
+    get_wrong_reason_summary,
+    get_student_weekly_monthly_report,
 )
 from ui.focus_ui import render_focus_section
 from ui.quiz_weakness_ui import render_quiz_weakness_section
@@ -36,6 +38,46 @@ def render_ai_report_tab(student_id: str, student_handle: str = ""):
     with c3:
         cr_str = f"{int(avg_cr * 100)}%" if isinstance(avg_cr, (int, float)) else "N/A"
         st.metric("평균 정답률", cr_str)
+
+    # 오답 유형 세분화 (찍음 vs 몰라서 vs 실수)
+    try:
+        wrong_reason = get_wrong_reason_summary(student_id, lookback_days=30)
+        by_reason = wrong_reason.get("by_reason") or []
+        if by_reason:
+            with st.container(border=True):
+                st.caption("📌 오답 유형별 집계 (학생 체크 기준, 최근 30일)")
+                st.markdown(" · ".join([f"{r['label']} {r['count']}건" for r in by_reason]))
+    except Exception:
+        pass
+
+    # 주간/월간 리포트 (한 장 요약 + 그래프)
+    st.markdown("---")
+    st.markdown("#### 📅 주간/월간 리포트")
+    period_report = st.radio("기간", ["주간", "월간"], key="parent_report_period", horizontal=True)
+    period_key = "week" if period_report == "주간" else "month"
+    windows = 4 if period_key == "week" else 3
+    try:
+        report_data = get_student_weekly_monthly_report(student_id, period=period_key, windows=windows)
+        summary = report_data.get("summary") or {}
+        chart_list = report_data.get("chart") or []
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            st.metric("채점 횟수(해당 기간)", summary.get("grading_count", 0))
+        with c2:
+            st.metric("튜터 질문 수", summary.get("chat_count", 0))
+        with c3:
+            wr = summary.get("wrong_rate")
+            st.metric("오답률", f"{int(wr*100)}%" if isinstance(wr, (int, float)) else "N/A")
+        with c4:
+            sr = summary.get("submission_rate")
+            st.metric("숙제 제출률", f"{int(sr*100)}%" if isinstance(sr, (int, float)) else "N/A")
+        st.caption(f"연속 학습 일수: {summary.get('streak_days', 0)}일")
+        if chart_list:
+            chart_df = pd.DataFrame(chart_list)
+            chart_df = chart_df.set_index("label")
+            st.line_chart(chart_df[["grading_count", "chat_count"]].rename(columns={"grading_count": "채점 수", "chat_count": "질문 수"}))
+    except Exception as e:
+        st.caption(f"리포트 로드 실패: {e}")
 
     # 1) 공부 관련 질문/답변 이력
     st.markdown("#### 📚 공부 관련 질문·답변 이력")

@@ -38,9 +38,10 @@ def render_class_dashboard_tab(state: dict, student_ids, handle_map: dict):
 
     df = pd.DataFrame(rows)
 
-    # 상단 KPI 요약
+    # 상단 KPI 요약 + 조기 경고(At-Risk)
     total_students = len(rows)
-    high_risk = sum(1 for r in rows if (r.get("risk_score") or 0) >= 70)
+    at_risk = [r for r in rows if r.get("needs_support") is True]
+    high_risk = len(at_risk)
 
     avg_wrong = df["latest_wrong_rate"].dropna().mean() if "latest_wrong_rate" in df else None
     avg_submit = df["submission_rate_14d"].dropna().mean() if "submission_rate_14d" in df else None
@@ -49,11 +50,20 @@ def render_class_dashboard_tab(state: dict, student_ids, handle_map: dict):
         c1, c2, c3 = st.columns(3)
         with c1:
             st.metric("총 학생 수", total_students)
-            st.caption(f"고위험 학생(리스크≥70): {high_risk}명")
+            st.caption(f"⚠️ 지원 필요(리스크≥70): {high_risk}명")
         with c2:
             st.metric("최근 평균 오답률", _fmt_pct(avg_wrong))
         with c3:
             st.metric("최근 14일 평균 숙제 제출률", _fmt_pct(avg_submit))
+
+    # 지원 필요 학생 빠른 목록 (조기 경고 강화)
+    if at_risk:
+        with st.container(border=True):
+            st.markdown("#### ⚠️ 지원 필요 학생")
+            for r in at_risk:
+                st.markdown(f"- **{r.get('student_name', r.get('student_id'))}** — 위험 점수 {r.get('risk_score')} · "
+                           f"오답률 {_fmt_pct(r.get('latest_wrong_rate'))} · 숙제 제출률 {_fmt_pct(r.get('submission_rate_14d'))}")
+            st.caption("위 학생들은 상세 보기에서 개별 지원 계획을 확인·설정하세요.")
 
     st.markdown("---")
 
@@ -88,9 +98,10 @@ def render_class_dashboard_tab(state: dict, student_ids, handle_map: dict):
 
     st.markdown("---")
 
-    # 상세 테이블
+    # 상세 테이블 (지원 필요 플래그 포함)
     view_cols = [
         "student_name",
+        "needs_support",
         "risk_score",
         "latest_wrong_rate",
         "submission_rate_14d",
@@ -99,6 +110,8 @@ def render_class_dashboard_tab(state: dict, student_ids, handle_map: dict):
         "top_concept",
         "top_reason",
     ]
+    if "needs_support" not in df.columns:
+        df["needs_support"] = (df.get("risk_score") or 0) >= 70
     view_df = df[view_cols].copy()
     if "latest_wrong_rate" in view_df:
         view_df["latest_wrong_rate"] = view_df["latest_wrong_rate"].apply(
@@ -112,12 +125,15 @@ def render_class_dashboard_tab(state: dict, student_ids, handle_map: dict):
         view_df["confused_rate_14d"] = view_df["confused_rate_14d"].apply(
             lambda v: _fmt_pct(v) if isinstance(v, (int, float)) and not math.isnan(v) else ""
         )
+    if "needs_support" in view_df:
+        view_df["needs_support"] = view_df["needs_support"].apply(lambda v: "예" if v else "")
 
     st.markdown("#### 학생별 위험도 및 요약")
     st.dataframe(
         view_df.rename(
             columns={
                 "student_name": "학생",
+                "needs_support": "지원 필요",
                 "risk_score": "위험 점수(0~100)",
                 "latest_wrong_rate": "최근 오답률",
                 "submission_rate_14d": "숙제 제출률(14일)",

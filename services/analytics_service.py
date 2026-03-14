@@ -255,6 +255,36 @@ def get_student_learning_profile_summary(student_id: str, lookback_days: int = 1
 
 
 # ---------------------------
+# 오답 유형 세분화 (찍음 vs 몰라서 vs 실수 등) — 집계·라벨
+# ---------------------------
+def get_wrong_reason_summary(student_id: str, lookback_days: int = 30) -> Dict[str, Any]:
+    """
+    오답 피드백의 reason_category별 건수. '찍음/감' vs '개념 부족' 등 구분해 표시용.
+    """
+    since = _iso(_utc_now() - timedelta(days=lookback_days))
+    rows = _execute_with_retry(
+        lambda: supabase.table("problem_item_feedback")
+        .select("reason_category")
+        .eq("student_user_id", student_id)
+        .gte("created_at", since)
+        .limit(500)
+        .execute()
+    ).data or []
+
+    reason_counter = Counter()
+    for r in rows:
+        rc = r.get("reason_category")
+        if rc:
+            reason_counter[rc] += 1
+
+    by_reason = []
+    for code, cnt in reason_counter.most_common():
+        by_reason.append({"code": code, "label": _REASON_KO.get(code, code), "count": int(cnt)})
+
+    return {"lookback_days": lookback_days, "total": len(rows), "by_reason": by_reason}
+
+
+# ---------------------------
 # ✅ NEW: 미제출 사유 요약(학생별)
 # ---------------------------
 def get_student_non_submit_reason_summary(student_id: str, lookback_days: int = 14) -> Dict[str, Any]:
@@ -518,6 +548,128 @@ def get_student_consultation_report(student_id: str) -> Dict[str, Any]:
 
 
 # ---------------------------
+# 주간/월간 학부모 리포트 (한 장 요약 + 그래프용)
+# ---------------------------
+def get_student_weekly_monthly_report(
+    student_id: str, period: str = "week", windows: int = 4
+) -> Dict[str, Any]:
+    """
+    period: "week" (주간) or "month" (월간).
+    windows: 기간 개수 (주간이면 4, 월간이면 3 등).
+    반환: summary (현재 기간 요약), chart (구간별 라벨·채점 수·질문 수·오답률·제출률).
+    """
+    now = _utc_now()
+    if period == "month":
+        delta = timedelta(days=30)
+        fmt_label = "%Y-%m"
+    else:
+        delta = timedelta(days=7)
+        fmt_label = "%m/%d"
+
+    chart = []
+    for i in range(windows):
+        end_dt = now - timedelta(days=(i * (30 if period == "month" else 7)))
+        start_dt = end_dt - delta
+        start_iso = _iso(start_dt)
+        end_iso = _iso(end_dt)
+        label = start_dt.strftime(fmt_label) + "~" + end_dt.strftime(fmt_label)
+
+        # 채점(제출) 횟수
+        try:
+            subs = _execute_with_retry(
+                lambda: supabase.table("problem_submissions")
+                .select("id")
+                .eq("student_user_id", student_id)
+                .gte("created_at", start_iso)
+                .lt("created_at", end_iso)
+                .execute()
+            ).data or []
+            grading_count = len(subs)
+        except Exception:
+            grading_count = 0
+
+        # 채점 문항 수·오답률
+        try:
+            items = _execute_with_retry(
+                lambda: supabase.table("problem_items")
+                .select("is_correct")
+                .eq("student_user_id", student_id)
+                .gte("created_at", start_iso)
+                .lt("created_at", end_iso)
+                .execute()
+            ).data or []
+            total = len(items)
+            wrong = sum(1 for x in items if not bool(x.get("is_correct")))
+            wrong_rate = (wrong / total) if total else None
+        except Exception:
+            total = wrong = 0
+            wrong_rate = None
+
+        # 질문 수 (chat)
+        try:
+            chats = _execute_with_retry(
+                lambda: supabase.table("chat_messages")
+                .select("id")
+                .eq("student_user_id", student_id)
+                .eq("role", "user")
+                .gte("created_at", start_iso)
+                .lt("created_at", end_iso)
+                .execute()
+            ).data or []
+            chat_count = len(chats)
+        except Exception:
+            chat_count = 0
+
+        # 숙제 제출률 (해당 기간 배정·제출)
+        try:
+            assigns = _execute_with_retry(
+                lambda: supabase.table("homework_assignments")
+                .select("id")
+                .eq("student_user_id", student_id)
+                .gte("created_at", start_iso)
+                .lt("created_at", end_iso)
+                .execute()
+            ).data or []
+            a_ids = [a["id"] for a in assigns if a.get("id")]
+            if not a_ids:
+                submission_rate = None
+            else:
+                subs_hw = _execute_with_retry(
+                    lambda: supabase.table("homework_submissions")
+                    .select("assignment_id")
+                    .in_("assignment_id", a_ids)
+                    .execute()
+                ).data or []
+                submitted = len(set(s.get("assignment_id") for s in subs_hw if s.get("assignment_id")))
+                submission_rate = submitted / len(a_ids)
+        except Exception:
+            submission_rate = None
+
+        chart.append({
+            "label": label,
+            "grading_count": grading_count,
+            "problem_count": total,
+            "wrong_rate": wrong_rate,
+            "chat_count": chat_count,
+            "submission_rate": submission_rate,
+        })
+
+    chart.reverse()
+    # 현재 기간(가장 최근) 요약
+    current = chart[-1] if chart else {}
+    streak = get_streak_days(student_id)
+    summary = {
+        "grading_count": current.get("grading_count", 0),
+        "chat_count": current.get("chat_count", 0),
+        "wrong_rate": current.get("wrong_rate"),
+        "submission_rate": current.get("submission_rate"),
+        "streak_days": streak,
+        "period": period,
+    }
+    return {"summary": summary, "chart": chart}
+
+
+# ---------------------------
 # NEW: AI 기반 학습 진행도 요약 (질문·복습·채점 트렌드)
 # ---------------------------
 def get_student_ai_learning_progress(student_id: str) -> Dict[str, Any]:
@@ -717,6 +869,7 @@ def get_class_dashboard_rows(student_ids: List[str]) -> List[Dict[str, Any]]:
         else:
             conf = float(conf)
 
+        risk = _risk_score(unsubmitted, submission_rate, latest_wrong_rate, conf)
         rows.append(
             {
                 "student_id": sid,
@@ -726,7 +879,8 @@ def get_class_dashboard_rows(student_ids: List[str]) -> List[Dict[str, Any]]:
                 "top_concept": (top_concepts[0] if top_concepts else None),
                 "top_reason": (top_reasons[0] if top_reasons else None),
                 "confused_rate_14d": conf,
-                "risk_score": _risk_score(unsubmitted, submission_rate, latest_wrong_rate, conf),
+                "risk_score": risk,
+                "needs_support": risk >= 70,
             }
         )
 
@@ -834,6 +988,96 @@ def get_subject_achievement(student_id: str, lookback_days: int = 30) -> Dict[st
             "avg_correct_rate": sum(d["correct_rate"] for d in data) / len(data) if data else None,
         },
         "subjects": data,
+    }
+
+
+# ---------------------------
+# 마스터리·진행 레벨 (Khan 스타일: Practiced → Mastered)
+# ---------------------------
+def get_subject_mastery_levels(
+    student_id: str, lookback_days: int = 30, min_attempts_mastered: int = 3, master_threshold: float = 0.8
+) -> Dict[str, Any]:
+    """
+    과목별(및 선택적으로 개념별) 진행 레벨: Practiced(연습함) / Mastered(마스터).
+    Mastered: 최근 N회 이상 풀고 정답률 >= threshold. 그 외 시도한 과목은 Practiced.
+    """
+    since = _iso(_utc_now() - timedelta(days=lookback_days))
+    try:
+        rows = _execute_with_retry(
+            lambda: supabase.table("problem_items")
+            .select("subject_code, key_concepts, is_correct")
+            .eq("student_user_id", student_id)
+            .gte("created_at", since)
+            .limit(800)
+            .execute()
+        ).data or []
+    except Exception:
+        rows = []
+
+    by_sub_total = Counter()
+    by_sub_correct = Counter()
+    for r in rows:
+        code = (r.get("subject_code") or "MATH").upper()
+        if code not in _SUBJECT_LABELS:
+            code = "MATH"
+        by_sub_total[code] += 1
+        if bool(r.get("is_correct")):
+            by_sub_correct[code] += 1
+
+    by_concept_total: Dict[str, Counter] = {}
+    by_concept_correct: Dict[str, Counter] = {}
+    for r in rows:
+        code = (r.get("subject_code") or "MATH").upper()
+        if code not in _SUBJECT_LABELS:
+            code = "MATH"
+        for c in (r.get("key_concepts") or []):
+            if not c or not isinstance(c, str):
+                continue
+            c = c.strip()
+            by_concept_total.setdefault(code, Counter())[c] += 1
+            if bool(r.get("is_correct")):
+                by_concept_correct.setdefault(code, Counter())[c] += 1
+
+    subject_levels = []
+    for code in _SUBJECT_LABELS:
+        total = by_sub_total.get(code, 0)
+        correct = by_sub_correct.get(code, 0)
+        if total >= min_attempts_mastered and total > 0 and (correct / total) >= master_threshold:
+            level = "mastered"
+        elif total >= 1:
+            level = "practiced"
+        else:
+            level = "none"
+        subject_levels.append({
+            "code": code,
+            "label": _SUBJECT_LABELS.get(code, code),
+            "level": level,
+            "attempt_count": total,
+            "correct_count": correct,
+        })
+
+    concept_levels: Dict[str, List[Dict[str, Any]]] = {}
+    for code in _SUBJECT_LABELS:
+        concept_levels[code] = []
+        for concept, total in (by_concept_total.get(code) or Counter()).most_common(10):
+            correct = (by_concept_correct.get(code) or Counter()).get(concept, 0)
+            if total >= min_attempts_mastered and total > 0 and (correct / total) >= master_threshold:
+                level = "mastered"
+            elif total >= 1:
+                level = "practiced"
+            else:
+                level = "none"
+            concept_levels[code].append({
+                "concept": concept,
+                "level": level,
+                "attempt_count": total,
+                "correct_count": correct,
+            })
+
+    return {
+        "lookback_days": lookback_days,
+        "subject_levels": subject_levels,
+        "concept_levels": concept_levels,
     }
 
 

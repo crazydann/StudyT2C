@@ -1,6 +1,7 @@
 import streamlit as st
 
 from services.llm_service import generate_practice_question
+from services.analytics_service import get_wrong_reason_summary
 from services.db_service import (
     save_practice_item,
     update_practice_result,
@@ -36,6 +37,18 @@ _REASON_LABELS = {
 def render_student_wrongnote(supabase, user, student_id: str, state: dict):
     st.subheader("📒 나의 오답노트")
     st.caption("오답 문항을 기반으로 유사문제를 생성하고 바로 풀어볼 수 있어요. (최근 채점 기준)")
+
+    # 오답 유형 세분화: 찍음 vs 몰라서 vs 실수 등 요약
+    try:
+        reason_summary = get_wrong_reason_summary(student_id, lookback_days=30)
+        by_reason = reason_summary.get("by_reason") or []
+        if by_reason:
+            with st.container(border=True):
+                st.caption("📌 오답 유형 요약 (최근 30일, 학생 체크 기준)")
+                parts = [f"**{r['label']}** {r['count']}건" for r in by_reason]
+                st.markdown(" · ".join(parts))
+    except Exception:
+        pass
 
     # ✅ 세션에 graded_items가 없으면, DB에서 '가장 최근 채점 제출'을 한번 불러와 초기화
     if not state.get("graded_items"):

@@ -19,6 +19,13 @@ def render_chat_panel(user: dict, student_id: str, state: dict) -> None:
     else:
         st.caption("🟡 break 모드: 자유 질문 가능(데모용).")
 
+    socratic = st.checkbox(
+        "소크라틱 모드 (단계별 질문으로 스스로 답 찾기)",
+        value=state.get("socratic_mode", False),
+        key=f"chat_socratic_{student_id}",
+    )
+    state["socratic_mode"] = socratic
+
     for msg in state.get("messages", []):
         with st.chat_message(msg.get("role", "assistant")):
             st.markdown(msg.get("content", ""))
@@ -38,7 +45,13 @@ def render_chat_panel(user: dict, student_id: str, state: dict) -> None:
         with st.spinner("생각 중..."):
             try:
                 subj_class = classify_subject(u_input)
-                ans = chat_with_tutor(u_input, mode=user.get("status", "break"))
+                history = state.get("messages", []) if state.get("socratic_mode") else None
+                ans = chat_with_tutor(
+                    u_input,
+                    mode=user.get("status", "break"),
+                    socratic=state.get("socratic_mode", False),
+                    history=history,
+                )
             except Exception as e:
                 show_error("AI 튜터 응답 실패", e, context="classify_subject/chat_with_tutor")
                 subj_class = {"subject": "OTHER", "confidence": 0.0}

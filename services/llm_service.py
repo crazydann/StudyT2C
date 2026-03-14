@@ -129,9 +129,16 @@ def classify_subject(text: str) -> dict:
         return {"subject": "OTHER", "confidence": 0.0}
 
 
-def chat_with_tutor(user_message: str, mode: str = "studying") -> str:
+def chat_with_tutor(
+    user_message: str,
+    mode: str = "studying",
+    socratic: bool = False,
+    history: Optional[List[Dict[str, str]]] = None,
+) -> str:
     """
     AI 튜터 대화.
+    socratic=True: 정답을 바로 주지 않고 단계별 질문으로 유도(소크라틱 질문 모드).
+    history: 이전 대화 [{role, content}, ...] 있으면 컨텍스트로 전달.
     실패 시 사용자에게 보이는 메시지로 반환(서비스 예외를 그대로 내지 않음).
     """
     mode = (mode or "studying").strip().lower()
@@ -142,6 +149,12 @@ def chat_with_tutor(user_message: str, mode: str = "studying") -> str:
             "게임/연애/주식/잡담 등 공부와 관련 없는 질문이 오면 정중히 거절하고, "
             "대신 공부 관련 질문을 하도록 유도하세요."
         )
+        if socratic:
+            system_prompt += (
+                "\n\n**소크라틱 모드**: 정답을 바로 알려주지 마세요. "
+                "단계별로 **짧은 질문 한 개씩**만 하며, 학생이 스스로 생각해 답을 찾도록 유도하세요. "
+                "한 번에 하나의 질문만 하고, 학생이 답한 뒤에 다음 질문으로 이어가세요."
+            )
     else:
         # break 모드: 자유 질문 허용 (일반 챗봇처럼 응답)
         system_prompt = (
@@ -150,14 +163,16 @@ def chat_with_tutor(user_message: str, mode: str = "studying") -> str:
             "대부분의 질문에 자유롭게 답변해도 됩니다.\n"
             "단, 불법/유해한 내용은 피하고, 안전하고 건강한 방향으로만 대답하세요."
         )
+    messages: List[Dict[str, str]] = [{"role": "system", "content": system_prompt}]
+    if history:
+        for m in history[-20:]:
+            role = (m.get("role") or "").strip().lower()
+            content = (m.get("content") or "").strip()
+            if role in ("user", "assistant") and content:
+                messages.append({"role": role, "content": content})
+    messages.append({"role": "user", "content": user_message})
     try:
-        content = _chat_completion(
-            [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message},
-            ],
-            temperature=0.5,
-        )
+        content = _chat_completion(messages, temperature=0.5)
         return content
     except Exception as e:
         logger.exception("chat_with_tutor failed: %s", e)

@@ -33,4 +33,5 @@ def render_login_page() -> bool:
         else:
             st.error("아이디 또는 비밀번호가 올바르지 않습니다.")
 
+    st.caption("관리자(계정 선택) 화면: 주소 뒤에 **?app=admin** 을 붙여 접속하세요.")
     return False

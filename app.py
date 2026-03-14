@@ -176,6 +176,7 @@ def _sync_current_user_with_latest(users: list):
 
 def sidebar_account_picker(users):
     st.sidebar.title("🔐 계정 선택 (MVP)")
+    st.sidebar.caption("학생 로그인 화면: 앱 기본 URL 또는 ?app=student")
     _refresh_button()
 
     role_filter = st.sidebar.radio(
@@ -285,40 +286,48 @@ def route_to_ui(role, user):
 def _is_student_login_app() -> bool:
     """
     로그인학생 화면 모드 여부.
-    1) 환경변수 STUDENT_LOGIN_APP=true
-    2) URL 쿼리 ?app=student 또는 ?student=1 (같은 배포에서 studyt2c만 로그인 쓰고 싶을 때)
-    3) 이번 세션에서 이미 쿼리로 로그인 모드 켠 적 있으면 유지
+    - studyt2c.streamlit.app 기본: 로그인 → 로그인학생 화면 (True)
+    - 기존 계정 선택(관리자) 화면: ?app=admin 으로 접근 (False)
     """
-    # 쿼리 파라미터로 모드 전환 (같은 앱에서 studyt2c / admin 구분용)
     try:
         q = getattr(st, "query_params", None)
-        if q is not None:
-            raw = (q.get("app") or q.get("student") or "") if hasattr(q, "get") else ""
+        if q is not None and hasattr(q, "get"):
+            raw = q.get("app") or q.get("admin") or ""
         else:
             q = getattr(st, "experimental_get_query_params", lambda: {})()
-            raw = (q.get("app") or q.get("student") or [""])[0] if isinstance(q, dict) else ""
+            raw = (q.get("app") or q.get("admin") or [""])
+            raw = raw[0] if isinstance(raw, (list, tuple)) else raw
         app_val = (raw[0] if isinstance(raw, (list, tuple)) else raw) or ""
     except Exception:
         app_val = ""
     app_val = str(app_val).strip().lower()
+
+    # ?app=admin → 계정 선택(기존) 화면
+    if app_val == "admin":
+        st.session_state["_student_login_mode"] = False
+        return False
+    # ?app=student → 명시적 로그인학생 화면
     if app_val in ("student", "1", "true"):
         st.session_state["_student_login_mode"] = True
-    elif app_val == "admin":
-        st.session_state["_student_login_mode"] = False
-
-    if st.session_state.get("_student_login_mode") is True:
         return True
 
+    # 쿼리 없음: studyt2c.streamlit.app 기본 → 로그인학생 화면
+    if not app_val:
+        return True
+
+    # 기타 값이면 config/env 확인
     try:
         import config
-        fn = getattr(config, "is_student_login_app", None)
-        if callable(fn):
-            return fn()
+        if hasattr(config, "is_student_login_app") and callable(config.is_student_login_app):
+            return config.is_student_login_app()
     except Exception:
         pass
     import os
-    v = os.environ.get("STUDENT_LOGIN_APP") or ""
-    return str(v).strip().lower() in ("1", "true", "yes")
+    v = os.environ.get("STUDENT_LOGIN_APP", "")
+    # STUDENT_LOGIN_APP이 명시적으로 "0"/"false"면 admin 기본, 없거나 true면 학생 로그인 기본
+    if str(v).strip().lower() in ("0", "false", "no"):
+        return False
+    return True
 
 
 def main():

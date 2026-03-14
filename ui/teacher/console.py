@@ -6,7 +6,7 @@ from ui.teacher.data_loaders import fetch_teacher_student_ids, fetch_user_handle
 from ui.teacher.student_list import render_student_list
 from ui.teacher.student_detail import render_student_detail
 from ui.teacher.class_dashboard_tab import render_class_dashboard_tab
-from services.demo_seed import seed_demo_basic
+from services.demo_seed import seed_demo_basic, delete_demo_data
 from ui.layout import render_app_header, page_card
 
 
@@ -25,17 +25,31 @@ def render_teacher_console(supabase, user):
     with page_card():
         st.markdown("#### 반 관리")
 
-        # 개발 모드 전용: 데모 데이터 생성 버튼
+        # 개발 모드 전용: 데모 데이터 생성 / 삭제
         if bool(st.session_state.get("dev_mode", False)):
-            if st.button("🧪 데모 데이터 생성", key="t_seed_demo"):
-                try:
-                    info = seed_demo_basic()
-                    st.success(
-                        f"데모 유저 생성 완료: teacher={info['teacher']['handle']}, "
-                        f"student={info['student']['handle']}, parent={info['parent']['handle']}"
-                    )
-                except Exception as e:
-                    st.error(f"데모 데이터 생성 실패: {e}")
+            c_seed, c_del = st.columns(2)
+            with c_seed:
+                if st.button("🧪 데모 데이터 생성", key="t_seed_demo"):
+                    try:
+                        info = seed_demo_basic()
+                        st.success(
+                            f"데모 유저 생성 완료: teacher={info['teacher']['handle']}, "
+                            f"student={info['student']['handle']}, parent={info['parent']['handle']}"
+                        )
+                    except Exception as e:
+                        st.error(f"데모 데이터 생성 실패: {e}")
+            with c_del:
+                if st.button("🗑️ 데모 데이터 모두 삭제", key="t_delete_demo", type="secondary"):
+                    try:
+                        result = delete_demo_data()
+                        if result.get("ok"):
+                            st.success(result.get("message", "삭제 완료."))
+                            if result.get("deleted"):
+                                st.caption(str(result["deleted"]))
+                        else:
+                            st.error(result.get("message", "삭제 실패."))
+                    except Exception as e:
+                        st.error(f"데모 데이터 삭제 실패: {e}")
 
         state = get_role_state("teacher", teacher_id)
         state.setdefault("selected_student", None)

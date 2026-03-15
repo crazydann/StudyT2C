@@ -84,6 +84,9 @@ def _apply_student_layout_css():
             }
         }
 
+        /* 추천 개념 버튼 글자 70% */
+        .mvp-concept-banner .stButton > button { font-size: 70% !important; }
+
         /* 휴대폰: 3열 세로 쌓기, AI 튜터 맨 위 */
         @media (max-width: 768px) {
             div[data-testid="stHorizontalBlock"] {
@@ -135,30 +138,30 @@ def render_mvp_student_view(supabase, user: dict):
 
     _apply_student_layout_css()
 
-    # 1. 헤더: 왼쪽(학생 이름·집중 상태·서비스 소개) | 오른쪽(로그아웃) — 시간·과목·학습모드 안내 제거, 추천개념이 맨 위에 보이도록
-    studying = effective_status == "studying"
-    header_left, header_right = st.columns([4, 1])
-    with header_left:
-        status_label = "현재 집중 학습 중" if studying else "쉬는 시간"
-        st.markdown(
-            f'<div style="font-size:1.05rem; font-weight:600;">👤 {student_handle}</div>'
-            f'<div style="font-size:0.8rem; color:#64748b;">{status_label}</div>',
-            unsafe_allow_html=True,
-        )
-        from ui.service_intro_dialog import render_service_intro_button_inline
-        render_service_intro_button_inline()
-    with header_right:
-        if st.button("로그아웃", key="mvp_logout", type="secondary"):
-            st.session_state.pop("mvp_user", None)
-            st.session_state.pop("current_user", None)
-            st.rerun()
-
     effective_user = {**user, "status": effective_status}
+    studying = effective_status == "studying"
 
-    # 2. 3열: 좌(질의 개념 복습·문제 만들기·지난 문제들·추천 개념) | 중(AI 튜터) | 우(문제 채점기·지난 채점 이력)
+    # 3열: 좌(이름·로그아웃·서비스 소개·질의 개념 복습·…) | 중(추천개념·AI 튜터) | 우(문제 채점기·…). 가운데 상단 공간 제거.
     col_left, col_center, col_right = st.columns([1, 5, 1])
 
     with col_left:
+        # 왼쪽 프레임 상단: 이름 옆에 작은 로그아웃
+        status_label = "현재 집중 학습 중" if studying else "쉬는 시간"
+        r1, r2 = st.columns([3, 1])
+        with r1:
+            st.markdown(
+                f'<div style="font-size:1.05rem; font-weight:600;">👤 {student_handle}</div>'
+                f'<div style="font-size:0.8rem; color:#64748b;">{status_label}</div>',
+                unsafe_allow_html=True,
+            )
+        with r2:
+            if st.button("로그아웃", key="mvp_logout", type="secondary", use_container_width=True):
+                st.session_state.pop("mvp_user", None)
+                st.session_state.pop("current_user", None)
+                st.rerun()
+        from ui.service_intro_dialog import render_service_intro_button_inline
+        render_service_intro_button_inline()
+        st.markdown("")  # 여백
         _render_left_sidebar(str(student_id), student_handle, state)
 
     with col_center:
@@ -257,6 +260,7 @@ def _render_recommended_concepts_banner(student_id: str, state: dict) -> None:
         )
     else:
         n = min(6, len(concepts))
+        st.markdown('<div class="mvp-concept-banner">', unsafe_allow_html=True)
         with st.container(border=True):
             cols = st.columns([1] * (n + 1))
             with cols[0]:
@@ -267,6 +271,7 @@ def _render_recommended_concepts_banner(student_id: str, state: dict) -> None:
                     if st.button(label, key=f"mvp_banner_c_{student_id}_{i}", use_container_width=True):
                         st.session_state["mvp_concept_popup"] = c
                         st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
     if st.session_state.get("mvp_concept_popup"):
         try:
             _dialog_concept_explanation(st.session_state["mvp_concept_popup"])

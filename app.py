@@ -243,7 +243,7 @@ def _render_admin_header_card(users, current_user=None):
                     shandle = (sel.get("handle") if isinstance(sel, dict) else None) or "student"
                     if sid:
                         with st.popover("⚙️ 자녀 설정"):
-                            from ui.parent.student_detail import render_parent_settings_content
+                            from ui.parent.settings_content import render_parent_settings_content
                             render_parent_settings_content(supabase, current_user["id"], str(sid), shandle)
                 elif role == "teacher":
                     state = get_role_state("teacher", current_user["id"])
@@ -251,7 +251,7 @@ def _render_admin_header_card(users, current_user=None):
                     student_id = sel.get("id") if isinstance(sel, dict) else sel
                     if student_id:
                         with st.popover("⚙️ 학생 설정"):
-                            from ui.teacher.student_detail import render_teacher_settings_content
+                            from ui.teacher.settings_content import render_teacher_settings_content
                             render_teacher_settings_content(supabase, current_user["id"], str(student_id))
             render_service_intro_button_inline()
             with st.expander("설정", expanded=False):

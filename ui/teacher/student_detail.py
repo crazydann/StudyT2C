@@ -35,7 +35,7 @@ def render_student_detail(supabase, teacher_id: str, state: dict, handle_map: di
         st.markdown(f"<span style='font-size:16px;font-weight:600;'>{student_handle}</span>", unsafe_allow_html=True)
 
     tab_labels = ["맞춤 보강·성취도", "상담", "숙제", "집중현황", "요약"]
-    selected = st.radio("탭", options=tab_labels, horizontal=True, key="teacher_detail_tab", label_visibility="collapsed")
+    selected = st.radio("탭", options=tab_labels, horizontal=True, key=f"teacher_detail_tab_{student_id}", label_visibility="collapsed")
 
     if selected == "맞춤 보강·성취도":
         render_teacher_ai_report_tab(str(student_id), student_handle)

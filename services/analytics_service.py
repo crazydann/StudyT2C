@@ -569,7 +569,6 @@ def get_next_class_recommendation(student_id: str, lookback_days: int = 30) -> s
         return "이번 주에는 " + " ".join(parts) + "."
     except Exception:
         return "권고 문구를 생성할 수 없습니다."
-}
 
 
 # ---------------------------

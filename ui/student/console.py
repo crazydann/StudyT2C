@@ -71,7 +71,8 @@ def render_student_console(supabase, user):
         st.session_state["st_image_fullwidth"] = True
     with st.sidebar:
         with st.expander("설정", expanded=False):
-            st.toggle("개발 모드", key="dev_mode")
+            if not st.session_state.get("_admin_flow"):
+                st.toggle("개발 모드", key="dev_mode")
             st.toggle("이미지 크게 보기", key="st_image_fullwidth")
 
     # 상단 한 줄: 학습(메인) | 숙제·오답·기록(서브) — 오프라인 보조 본질에 맞게 학습이 메인

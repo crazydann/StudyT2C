@@ -229,9 +229,10 @@ def _render_admin_header_card(users):
         with row[2]:
             render_service_intro_button_inline()
             with st.expander("설정", expanded=False):
-                if "dev_mode" not in st.session_state:
-                    st.session_state["dev_mode"] = False
-                st.toggle("개발 모드", key="dev_mode")
+                if "admin_dev_mode" not in st.session_state:
+                    st.session_state["admin_dev_mode"] = st.session_state.get("dev_mode", False)
+                st.toggle("개발 모드", key="admin_dev_mode")
+                st.session_state["dev_mode"] = st.session_state.get("admin_dev_mode", False)
                 if st.button("다른 계정 선택", key="admin_clear_user"):
                     st.session_state.pop("current_user", None)
                     st.rerun()
@@ -373,6 +374,7 @@ def main():
         st.session_state.pop("open_service_intro_dialog", None)
         st.session_state.pop("service_intro_authenticated", None)
 
+    st.session_state["_admin_flow"] = True  # 어드민 플로우에서만 설정; 콘솔에서 dev_mode 중복 키 방지
     current_user = main_account_picker_or_console(users)
     if not current_user:
         st.stop()

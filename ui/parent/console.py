@@ -13,7 +13,8 @@ def render_parent_console(supabase, user):
         st.session_state["dev_mode"] = False
     with st.sidebar:
         with st.expander("설정", expanded=False):
-            st.toggle("개발 모드", key="dev_mode")
+            if not st.session_state.get("_admin_flow"):
+                st.toggle("개발 모드", key="dev_mode")
 
     parent_id = user["id"]
     parent_handle = user.get("handle") or "parent"

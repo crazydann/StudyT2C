@@ -15,7 +15,8 @@ def render_teacher_console(supabase, user):
         st.session_state["dev_mode"] = False
     with st.sidebar:
         with st.expander("설정", expanded=False):
-            st.toggle("개발 모드", key="dev_mode")
+            if not st.session_state.get("_admin_flow"):
+                st.toggle("개발 모드", key="dev_mode")
         if bool(st.session_state.get("dev_mode", False)):
             with st.expander("개발자 도구", expanded=False):
                 if st.button("데모 데이터 생성", key="t_seed_demo"):

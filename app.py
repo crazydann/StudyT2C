@@ -398,6 +398,11 @@ def main():
     # ✅ current_user 최신값 동기화(권한/모드 갱신)
     _sync_current_user_with_latest(users)
 
+    # 어드민: 서비스 소개는 '서비스 소개' 버튼을 눌렀을 때만 노출. 첫 진입(계정 미선택) 시 대화 상태 초기화.
+    if not st.session_state.get("current_user"):
+        st.session_state.pop("open_service_intro_dialog", None)
+        st.session_state.pop("service_intro_authenticated", None)
+
     current_user = sidebar_account_picker(users)
     if not current_user:
         st.stop()

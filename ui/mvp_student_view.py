@@ -87,13 +87,20 @@ def _apply_student_layout_css():
         /* 추천 개념 버튼 글자 70% */
         .mvp-concept-banner .stButton > button { font-size: 70% !important; }
 
-        /* 로그인 학생: 로그아웃 버튼 작게, 가로 한 줄로 */
+        /* 로그인 학생: 로그아웃 버튼 — '현재 집중 학습 중'과 비슷한 크기, 한 줄 */
         .mvp-logout-wrap .stButton > button {
-            font-size: 0.7rem !important;
+            font-size: 0.65rem !important;
             white-space: nowrap !important;
-            padding: 0.3rem 0.5rem !important;
+            padding: 0.2rem 0.4rem !important;
             min-height: auto !important;
         }
+        /* 좌·우 프레임: 질의 개념 복습, 지난 문제들, 문제 채점기 등 글자 축소 */
+        .mvp-left-col .stMarkdown p, .mvp-left-col .stMarkdown strong { font-size: 0.8rem !important; }
+        .mvp-left-col .stCaption { font-size: 0.7rem !important; }
+        .mvp-left-col .stButton > button { font-size: 0.75rem !important; padding: 0.25rem 0.4rem !important; }
+        .mvp-right-col .stMarkdown p, .mvp-right-col .stMarkdown strong { font-size: 0.8rem !important; }
+        .mvp-right-col .stCaption { font-size: 0.7rem !important; }
+        .mvp-right-col .stButton > button { font-size: 0.75rem !important; }
 
         /* 휴대폰: 3열 세로 쌓기, AI 튜터 맨 위 */
         @media (max-width: 768px) {
@@ -153,9 +160,10 @@ def render_mvp_student_view(supabase, user: dict):
     col_left, col_center, col_right = st.columns([1, 5, 1])
 
     with col_left:
+        st.markdown('<div class="mvp-left-col">', unsafe_allow_html=True)
         # 왼쪽 프레임 상단: 이름 옆에 작은 로그아웃 (가로 표기, 글자 작게)
         status_label = "현재 집중 학습 중" if studying else "쉬는 시간"
-        r1, r2 = st.columns([2, 1.2])  # 로그아웃 열 넉넉히 해서 세로 쌓임 방지
+        r1, r2 = st.columns([2, 1.3])  # 로그아웃 열 넉넉히 해서 두 줄 방지
         with r1:
             st.markdown(
                 f'<div style="font-size:1.05rem; font-weight:600;">👤 {student_handle}</div>'
@@ -173,6 +181,7 @@ def render_mvp_student_view(supabase, user: dict):
         render_service_intro_button_inline()
         st.markdown("")  # 여백
         _render_left_sidebar(str(student_id), student_handle, state)
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with col_center:
         # 추천 공부 개념: 얇은 띠 배너 (AI 튜터 바로 위)
@@ -181,7 +190,11 @@ def render_mvp_student_view(supabase, user: dict):
         render_center_panel(effective_user, str(student_id), state)
 
     with col_right:
+        st.markdown('<div class="mvp-right-col">', unsafe_allow_html=True)
+        # 왼쪽 '질의 개념 복습'과 같은 선상에 '문제 채점기'가 오도록 상단 여백
+        st.markdown('<div style="min-height:72px;" aria-hidden="true"></div>', unsafe_allow_html=True)
         _render_right_panel(effective_user, str(student_id), state)
+        st.markdown('</div>', unsafe_allow_html=True)
 
     try:
         supabase_url = config.get_supabase_url()
@@ -322,7 +335,7 @@ def _render_left_sidebar(student_id: str, student_handle: str, state: dict) -> N
 
 
 def _render_right_panel(user: dict, student_id: str, state: dict) -> None:
-    """우측: 문제 채점기·사진 업로드·지난 채점 이력 (첨부 UI)."""
+    """우측: 문제 채점기·사진 업로드·지난 채점 이력 (좌측 질의 개념 복습과 같은 선상)."""
     st.markdown("**✨ 문제 채점기**")
     st.markdown(
         "풀이한 문제를 사진으로 찍어 업로드하면 AI가 채점해요!"

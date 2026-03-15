@@ -145,6 +145,8 @@ def render_mvp_student_view(supabase, user: dict):
             f'<div style="font-size:0.8rem; color:#64748b;">{status_label}</div>',
             unsafe_allow_html=True,
         )
+        from ui.service_intro_dialog import render_service_intro_button_inline
+        render_service_intro_button_inline()
     with header_center:
         if studying and state.get("study_timer_start"):
             elapsed = int(time.time() - state["study_timer_start"])

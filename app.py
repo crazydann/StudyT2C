@@ -226,6 +226,8 @@ def _sync_current_user_with_latest(users: list):
 
 def sidebar_account_picker(users):
     st.sidebar.title("StudyT2C")
+    from ui.service_intro_dialog import render_service_intro_button_sidebar
+    render_service_intro_button_sidebar()
     st.sidebar.caption("계정 선택")
     _refresh_button()
 
@@ -374,9 +376,11 @@ def main():
     if _is_student_login_app():
         from ui.mvp_login import render_login_page
         from ui.mvp_student_view import render_mvp_student_view
+        from ui.service_intro_dialog import maybe_show_service_intro_dialog
         if not st.session_state.get("mvp_user"):
             render_login_page()
             return
+        maybe_show_service_intro_dialog()
         render_mvp_student_view(supabase, st.session_state["mvp_user"])
         return
 
@@ -397,6 +401,9 @@ def main():
     current_user = sidebar_account_picker(users)
     if not current_user:
         st.stop()
+
+    from ui.service_intro_dialog import maybe_show_service_intro_dialog
+    maybe_show_service_intro_dialog()
 
     _ensure_user_switch_safety(current_user["id"])
 

@@ -1,6 +1,8 @@
 import streamlit as st
 from typing import List, Optional
 
+from ui.service_intro_dialog import render_service_intro_button_inline
+
 
 def _avatar_circle(handle: str | None) -> None:
     name = (handle or "").strip() or "User"
@@ -30,6 +32,7 @@ def render_app_header(role_label: str, user_handle: str | None = "") -> None:
                 f" <span style='font-size:12px;color:#64748b;'>· {role_label}</span>",
                 unsafe_allow_html=True,
             )
+            render_service_intro_button_inline()
         with right:
             _avatar_circle(user_handle)
 
@@ -53,6 +56,7 @@ def render_top_bar_with_tabs(
                 f" <span style='font-size:11px;color:#64748b;'>· {role_label}</span>",
                 unsafe_allow_html=True,
             )
+            render_service_intro_button_inline()
         with col_tabs:
             selected = st.radio(
                 "탭",

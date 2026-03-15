@@ -211,7 +211,7 @@ def _filter_users_by_role(users: list, role: str):
 
 
 def _render_admin_header_card(users, current_user=None):
-    """메인 상단: StudyT2C + 역할 버튼 + (자녀/학생 설정 팝오버) + 서비스 소개 + 설정."""
+    """메인 상단 한 줄: StudyT2C + 역할 버튼 + 자녀/학생 설정 + 서비스 소개 + 설정 (컴팩트)."""
     from ui.service_intro_dialog import render_service_intro_button_inline
     from ui.ui_common import get_role_state
 
@@ -219,12 +219,17 @@ def _render_admin_header_card(users, current_user=None):
     if "admin_role" not in st.session_state:
         st.session_state["admin_role"] = "student"
 
+    st.markdown('<div class="admin-header-compact">', unsafe_allow_html=True)
     with st.container(border=True):
-        row = st.columns([2, 3, 1])
-        with row[0]:
-            st.markdown("### StudyT2C")
-            st.caption("오프라인 수업 개인화 보조 · 계정 선택")
-        with row[1]:
+        # 한 줄: 로고·캡션 | 학생·부모·선생님 | 자녀/학생설정 | 서비스소개 | 설정
+        c_logo, c_roles, c_settings_pop, c_intro, c_expander = st.columns([1.2, 1.8, 0.6, 0.5, 0.4])
+        with c_logo:
+            st.markdown(
+                '<div style="font-size:0.95rem;font-weight:700;">StudyT2C</div>'
+                '<div style="font-size:0.7rem;color:#64748b;">오프라인 수업 개인화 보조 · 계정 선택</div>',
+                unsafe_allow_html=True,
+            )
+        with c_roles:
             r1, r2, r3 = st.columns(3)
             for col, (role_key, role_label) in zip([r1, r2, r3], role_opts):
                 with col:
@@ -232,8 +237,7 @@ def _render_admin_header_card(users, current_user=None):
                         st.session_state["admin_role"] = role_key
                         st.session_state.pop("current_user", None)
                         st.rerun()
-        with row[2]:
-            # 자녀 설정 / 학생 설정: 설정 버튼 왼쪽, 오버레이 팝오버
+        with c_settings_pop:
             if current_user:
                 role = current_user.get("role")
                 if role == "parent":
@@ -253,7 +257,9 @@ def _render_admin_header_card(users, current_user=None):
                         with st.popover("⚙️ 학생 설정"):
                             from ui.teacher.settings_content import render_teacher_settings_content
                             render_teacher_settings_content(supabase, current_user["id"], str(student_id))
+        with c_intro:
             render_service_intro_button_inline()
+        with c_expander:
             with st.expander("설정", expanded=False):
                 if "admin_dev_mode" not in st.session_state:
                     st.session_state["admin_dev_mode"] = st.session_state.get("dev_mode", False)
@@ -262,6 +268,7 @@ def _render_admin_header_card(users, current_user=None):
                 if st.button("다른 계정 선택", key="admin_clear_user"):
                     st.session_state.pop("current_user", None)
                     st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 def main_account_picker_or_console(users):
@@ -397,11 +404,15 @@ def main():
         st.session_state.pop("service_intro_authenticated", None)
 
     st.session_state["_admin_flow"] = True  # 어드민 플로우에서만 설정; 콘솔에서 dev_mode 중복 키 방지
-    # 어드민: 사이드바 숨김 + 좌우 빈 프레임 제거하여 가운데(메인)만 전체 폭으로 표시
+    # 어드민: 사이드바 숨김 + 좌우 빈 프레임 제거 + 상단 헤더 한 줄 컴팩트
     st.markdown(
         "<style>"
         "section[data-testid='stSidebar']{display:none !important;}"
         "div.block-container{max-width:100% !important; padding-left:1.5rem !important; padding-right:1.5rem !important;}"
+        ".admin-header-compact div[data-testid='stVerticalBlockBorderWrapper']{padding:0.35rem 0.6rem !important;}"
+        ".admin-header-compact .stButton>button{font-size:0.75rem !important;padding:0.25rem 0.5rem !important;min-height:28px !important;}"
+        ".admin-header-compact [data-testid='stExpander'] summary{font-size:0.75rem !important;padding:0.2rem 0 !important;}"
+        ".admin-header-compact [data-testid='stExpander'] summary div{font-size:0.75rem !important;}"
         "</style>",
         unsafe_allow_html=True,
     )

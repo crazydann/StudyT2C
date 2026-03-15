@@ -87,6 +87,14 @@ def _apply_student_layout_css():
         /* 추천 개념 버튼 글자 70% */
         .mvp-concept-banner .stButton > button { font-size: 70% !important; }
 
+        /* 로그인 학생: 로그아웃 버튼 작게, 가로 한 줄로 */
+        .mvp-logout-wrap .stButton > button {
+            font-size: 0.7rem !important;
+            white-space: nowrap !important;
+            padding: 0.3rem 0.5rem !important;
+            min-height: auto !important;
+        }
+
         /* 휴대폰: 3열 세로 쌓기, AI 튜터 맨 위 */
         @media (max-width: 768px) {
             div[data-testid="stHorizontalBlock"] {
@@ -145,9 +153,9 @@ def render_mvp_student_view(supabase, user: dict):
     col_left, col_center, col_right = st.columns([1, 5, 1])
 
     with col_left:
-        # 왼쪽 프레임 상단: 이름 옆에 작은 로그아웃
+        # 왼쪽 프레임 상단: 이름 옆에 작은 로그아웃 (가로 표기, 글자 작게)
         status_label = "현재 집중 학습 중" if studying else "쉬는 시간"
-        r1, r2 = st.columns([3, 1])
+        r1, r2 = st.columns([2, 1.2])  # 로그아웃 열 넉넉히 해서 세로 쌓임 방지
         with r1:
             st.markdown(
                 f'<div style="font-size:1.05rem; font-weight:600;">👤 {student_handle}</div>'
@@ -155,10 +163,12 @@ def render_mvp_student_view(supabase, user: dict):
                 unsafe_allow_html=True,
             )
         with r2:
+            st.markdown('<div class="mvp-logout-wrap">', unsafe_allow_html=True)
             if st.button("로그아웃", key="mvp_logout", type="secondary", use_container_width=True):
                 st.session_state.pop("mvp_user", None)
                 st.session_state.pop("current_user", None)
                 st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
         from ui.service_intro_dialog import render_service_intro_button_inline
         render_service_intro_button_inline()
         st.markdown("")  # 여백

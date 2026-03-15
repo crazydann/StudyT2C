@@ -397,9 +397,12 @@ def main():
         st.session_state.pop("service_intro_authenticated", None)
 
     st.session_state["_admin_flow"] = True  # 어드민 플로우에서만 설정; 콘솔에서 dev_mode 중복 키 방지
-    # 어드민: 왼쪽 프레임(사이드바) 완전 숨김
+    # 어드민: 사이드바 숨김 + 좌우 빈 프레임 제거하여 가운데(메인)만 전체 폭으로 표시
     st.markdown(
-        "<style>section[data-testid='stSidebar']{display:none !important;}</style>",
+        "<style>"
+        "section[data-testid='stSidebar']{display:none !important;}"
+        "div.block-container{max-width:100% !important; padding-left:1.5rem !important; padding-right:1.5rem !important;}"
+        "</style>",
         unsafe_allow_html=True,
     )
     current_user = main_account_picker_or_console(users)

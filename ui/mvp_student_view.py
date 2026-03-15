@@ -87,12 +87,14 @@ def _apply_student_layout_css():
         /* 추천 개념 버튼 글자 70% */
         .mvp-concept-banner .stButton > button { font-size: 70% !important; }
 
-        /* 로그인 학생: 로그아웃 버튼 — '현재 집중 학습 중'과 비슷한 크기, 한 줄 */
+        /* 로그인 학생: 로그아웃 버튼 한 줄로 (최소 너비 보장 + nowrap) */
         .mvp-logout-wrap .stButton > button {
             font-size: 0.65rem !important;
             white-space: nowrap !important;
-            padding: 0.2rem 0.4rem !important;
+            padding: 0.2rem 0.5rem !important;
             min-height: auto !important;
+            min-width: 4.2em !important;
+            box-sizing: content-box !important;
         }
         /* 좌·우 프레임: 질의 개념 복습, 지난 문제들, 문제 채점기 등 글자 축소 */
         .mvp-left-col .stMarkdown p, .mvp-left-col .stMarkdown strong { font-size: 0.8rem !important; }
@@ -163,7 +165,7 @@ def render_mvp_student_view(supabase, user: dict):
         st.markdown('<div class="mvp-left-col">', unsafe_allow_html=True)
         # 왼쪽 프레임 상단: 이름 옆에 작은 로그아웃 (가로 표기, 글자 작게)
         status_label = "현재 집중 학습 중" if studying else "쉬는 시간"
-        r1, r2 = st.columns([2, 1.3])  # 로그아웃 열 넉넉히 해서 두 줄 방지
+        r1, r2 = st.columns([1.5, 1.5])  # 로그아웃에 절반 비중으로 한 줄 확보
         with r1:
             st.markdown(
                 f'<div style="font-size:1.05rem; font-weight:600;">👤 {student_handle}</div>'

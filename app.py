@@ -136,11 +136,7 @@ def normalize_role(role: str | None) -> str:
 
 @st.cache_data(ttl=10)
 def fetch_users_cached():
-    """
-    ✅ 캐시된 유저 목록 (ttl=10초)
-    - Parent에서 설정 바꾸면 10초 내 자동 갱신되거나,
-      sidebar 새로고침 버튼으로 즉시 갱신 가능
-    """
+    """캐시된 유저 목록 (ttl=10초). 설정 변경 시 10초 내 자동 갱신."""
     resp = (
         supabase.table("users")
         .select("id, handle, role, status, detail_permission, show_practice_answer")
@@ -170,37 +166,6 @@ def fetch_users_cached():
     return users
 
 
-def _badge(text: str, bg: str = "#1f2937"):
-    st.sidebar.markdown(
-        f"""
-        <div style="
-            display:inline-block;
-            padding:6px 10px;
-            border-radius:999px;
-            background:{bg};
-            color:white;
-            font-size:12px;
-            margin:2px 4px 2px 0;
-            ">
-            {text}
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def _refresh_button():
-    if st.sidebar.button("🔄 새로고침", use_container_width=True):
-        try:
-            fetch_users_cached.clear()
-        except Exception:
-            try:
-                st.cache_data.clear()
-            except Exception:
-                pass
-        st.rerun()
-
-
 def _sync_current_user_with_latest(users: list):
     """
     ✅ current_user를 캐시된 users 목록의 최신 필드로 동기화
@@ -224,81 +189,86 @@ def _sync_current_user_with_latest(users: list):
         st.session_state["current_user"] = {**cur, **latest}
 
 
-def sidebar_account_picker(users):
-    st.sidebar.title("StudyT2C")
-    from ui.service_intro_dialog import render_service_intro_button_sidebar
-    render_service_intro_button_sidebar()
-    st.sidebar.caption("계정 선택")
-    _refresh_button()
+# 어드민: 메인 상단 역할 선택 + 계정 선택 (왼쪽 프레임 제거)
+def _admin_role_options():
+    return [
+        ("student", "학생"),
+        ("parent", "부모"),
+        ("teacher", "선생님"),
+    ]
 
-    role_filter = st.sidebar.radio(
-        "역할",
-        options=["전체", "student", "parent", "teacher"],
-        index=0,
-        horizontal=False,
-    )
-    if role_filter == "전체":
-        role_filter = "ALL"
-    q = st.sidebar.text_input("검색", value="", placeholder="이름 검색")
 
-    def match(u):
-        if role_filter != "ALL" and u["role"] != role_filter:
-            return False
-        if q and q.lower() not in (u["handle"] or "").lower():
-            return False
-        return True
+def _filter_users_by_role(users: list, role: str):
+    if role == "student":
+        from ui.ui_common import MVP_STUDENT_HANDLES
+        return [u for u in users if u.get("role") == "student" and (u.get("handle") or "").strip().lower() in MVP_STUDENT_HANDLES]
+    return [u for u in users if u.get("role") == role]
 
-    filtered = [u for u in users if match(u)]
+
+def _render_admin_header_card(users):
+    """메인 상단: StudyT2C + 역할 버튼(학생/부모/선생님) + 서비스 소개 + 설정."""
+    from ui.service_intro_dialog import render_service_intro_button_inline
+
+    role_opts = _admin_role_options()
+    if "admin_role" not in st.session_state:
+        st.session_state["admin_role"] = "student"
+
+    with st.container(border=True):
+        row = st.columns([2, 3, 1])
+        with row[0]:
+            st.markdown("### StudyT2C")
+            st.caption("오프라인 수업 개인화 보조 · 계정 선택")
+        with row[1]:
+            r1, r2, r3 = st.columns(3)
+            for col, (role_key, role_label) in zip([r1, r2, r3], role_opts):
+                with col:
+                    if st.button(role_label, key=f"admin_role_{role_key}", type="primary" if st.session_state.get("admin_role") == role_key else "secondary", use_container_width=True):
+                        st.session_state["admin_role"] = role_key
+                        st.session_state.pop("current_user", None)
+                        st.rerun()
+        with row[2]:
+            render_service_intro_button_inline()
+            with st.expander("설정", expanded=False):
+                if "dev_mode" not in st.session_state:
+                    st.session_state["dev_mode"] = False
+                st.toggle("개발 모드", key="dev_mode")
+                if st.button("다른 계정 선택", key="admin_clear_user"):
+                    st.session_state.pop("current_user", None)
+                    st.rerun()
+
+
+def main_account_picker_or_console(users):
+    """
+    왼쪽 프레임 없이 메인만 사용: 상단 카드(역할 버튼 + 설정) + 계정 선택 또는 콘솔.
+    """
+    _sync_current_user_with_latest(users)
+    role = st.session_state.get("admin_role", "student")
+    current = st.session_state.get("current_user")
+
+    # 역할과 맞는 계정인지 확인; 아니면 선택 해제
+    if current and current.get("role") != role:
+        st.session_state.pop("current_user", None)
+        current = None
+
+    _render_admin_header_card(users)
+
+    filtered = _filter_users_by_role(users, role)
     if not filtered:
-        st.sidebar.info("조건에 맞는 계정이 없습니다.")
+        st.info(f"해당 역할({role})의 계정이 없습니다.")
         return None
 
-    labels = []
-    id_by_label = {}
-    user_by_id = {}
-    for u in filtered:
-        raw = u.get("_raw_role", "")
-        role_label = u["role"]
-        if raw == "admin":
-            label = f"{u['handle']}  ·  {role_label} (was admin)"
-        else:
-            label = f"{u['handle']}  ·  {role_label}"
-        labels.append(label)
-        id_by_label[label] = u["id"]
-        user_by_id[u["id"]] = u
+    # 계정 미선택 시: 메인에 계정 선택 (버튼 또는 드롭다운)
+    if not current or current.get("id") not in {u["id"] for u in filtered}:
+        st.subheader("계정 선택")
+        st.caption("아래에서 이 역할로 볼 계정을 선택하세요.")
+        for u in filtered:
+            label = f"{u['handle']} · {u['role']}"
+            if st.button(label, key=f"admin_pick_{u['id']}", use_container_width=True):
+                st.session_state["current_user"] = u
+                st.rerun()
+        return None
 
-    current = st.session_state.get("current_user")
-    default_index = 0
-    if current and current.get("id") in user_by_id:
-        for i, u in enumerate(filtered):
-            if u["id"] == current["id"]:
-                default_index = i
-                break
-
-    selected_label = st.sidebar.radio(
-        "계정 목록",
-        options=labels,
-        index=default_index,
-        label_visibility="collapsed",
-    )
-
-    selected_id = id_by_label[selected_label]
-    selected_user = user_by_id[selected_id]
-
-    # 선택이 바뀌면 current_user 갱신
-    if (not current) or (current.get("id") != selected_user.get("id")):
-        st.session_state["current_user"] = selected_user
-        st.rerun()
-
-    st.sidebar.divider()
-
-    st.sidebar.caption(f"**{selected_user['handle']}** · {selected_user['role']}")
-
-    if st.sidebar.button("다른 계정 선택", use_container_width=True):
-        st.session_state.pop("current_user", None)
-        st.rerun()
-
-    return selected_user
+    return current
 
 
 def _ensure_user_switch_safety(current_user_id: str):
@@ -403,7 +373,7 @@ def main():
         st.session_state.pop("open_service_intro_dialog", None)
         st.session_state.pop("service_intro_authenticated", None)
 
-    current_user = sidebar_account_picker(users)
+    current_user = main_account_picker_or_console(users)
     if not current_user:
         st.stop()
 
@@ -413,9 +383,7 @@ def main():
     _ensure_user_switch_safety(current_user["id"])
 
     role = current_user.get("role")
-
-    st.title("StudyT2C")
-    st.caption("오프라인 수업 개인화 보조 · " + f"{current_user.get('handle')} · {role}")
+    st.caption(f"**{current_user.get('handle')}** · {role}")
 
     route_to_ui(role, current_user)
 

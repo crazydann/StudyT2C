@@ -33,7 +33,8 @@ def render_app_header(role_label: str, user_handle: str | None = "") -> None:
                 f" <span style='font-size:12px;color:#94a3b8;'>· {role_label}</span>",
                 unsafe_allow_html=True,
             )
-            render_service_intro_button_inline()
+            if not st.session_state.get("_admin_flow"):
+                render_service_intro_button_inline()
         with right:
             _avatar_circle(user_handle)
 
@@ -58,7 +59,8 @@ def render_top_bar_with_tabs(
                 f" <span style='font-size:11px;color:#94a3b8;'>· {role_label}</span>",
                 unsafe_allow_html=True,
             )
-            render_service_intro_button_inline()
+            if not st.session_state.get("_admin_flow"):
+                render_service_intro_button_inline()
         with col_tabs:
             selected = st.radio(
                 "탭",

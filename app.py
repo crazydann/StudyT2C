@@ -201,8 +201,13 @@ def _admin_role_options():
 def _filter_users_by_role(users: list, role: str):
     if role == "student":
         from ui.ui_common import MVP_STUDENT_HANDLES
-        return [u for u in users if u.get("role") == "student" and (u.get("handle") or "").strip().lower() in MVP_STUDENT_HANDLES]
-    return [u for u in users if u.get("role") == role]
+        out = [u for u in users if u.get("role") == "student" and (u.get("handle") or "").strip().lower() in MVP_STUDENT_HANDLES]
+        # David 먼저, 그다음 Joshua
+        out.sort(key=lambda u: (0 if (u.get("handle") or "").strip().lower() == "david" else 1, (u.get("handle") or "").lower()))
+        return out
+    out = [u for u in users if u.get("role") == role]
+    out.sort(key=lambda u: (u.get("handle") or "").lower())
+    return out
 
 
 def _render_admin_header_card(users):
@@ -258,17 +263,13 @@ def main_account_picker_or_console(users):
         st.info(f"해당 역할({role})의 계정이 없습니다.")
         return None
 
-    # 계정 미선택 시: 메인에 계정 선택 (버튼 또는 드롭다운)
+    # 계정 미선택 시: 첫 계정으로 자동 선택 후 바로 화면 진입 (학생=David, 부모=첫 부모, 선생=첫 선생)
     if not current or current.get("id") not in {u["id"] for u in filtered}:
-        st.subheader("계정 선택")
-        st.caption("아래에서 이 역할로 볼 계정을 선택하세요.")
-        for u in filtered:
-            label = f"{u['handle']} · {u['role']}"
-            if st.button(label, key=f"admin_pick_{u['id']}", use_container_width=True):
-                st.session_state["current_user"] = u
-                st.rerun()
-        return None
+        st.session_state["current_user"] = filtered[0]
+        st.session_state["_admin_role_users"] = filtered
+        st.rerun()
 
+    st.session_state["_admin_role_users"] = filtered  # 학생 전환 등에서 사용
     return current
 
 
@@ -385,7 +386,23 @@ def main():
     _ensure_user_switch_safety(current_user["id"])
 
     role = current_user.get("role")
-    st.caption(f"**{current_user.get('handle')}** · {role}")
+    # 어드민 학생 뷰: 현재 학생 옆에 David/Joshua 전환
+    role_users = st.session_state.get("_admin_role_users") or []
+    if role == "student" and st.session_state.get("_admin_flow") and len(role_users) >= 1:
+        row = st.columns([1, 3])
+        with row[0]:
+            options = [u["handle"] for u in role_users]
+            idx = next((i for i, u in enumerate(role_users) if u.get("id") == current_user.get("id")), 0)
+            sel = st.selectbox("학생", options, index=idx, key="admin_student_switcher", label_visibility="collapsed")
+            if options and sel != current_user.get("handle"):
+                chosen = next((u for u in role_users if (u.get("handle") or "") == sel), None)
+                if chosen:
+                    st.session_state["current_user"] = chosen
+                    st.rerun()
+        with row[1]:
+            st.caption(f"**{current_user.get('handle')}** · {role}")
+    else:
+        st.caption(f"**{current_user.get('handle')}** · {role}")
 
     route_to_ui(role, current_user)
 

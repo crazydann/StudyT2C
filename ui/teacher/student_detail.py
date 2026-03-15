@@ -7,6 +7,7 @@ from shared_summary import render_shared_summary
 from ui.teacher.consult_tab import render_consult_tab
 from ui.teacher.homework_tab import render_homework_tab
 from ui.teacher.ai_report_tab import render_teacher_ai_report_tab
+from ui.focus_ui import render_focus_section
 from ui.teacher.data_loaders import fetch_teacher_notification_email, update_teacher_notification_email
 from services.notification_settings_service import (
     fetch_notification_settings,
@@ -63,7 +64,7 @@ def render_student_detail(supabase, teacher_id: str, state: dict, handle_map: di
     with row[1]:
         st.markdown(f"<span style='font-size:16px;font-weight:600;'>{student_handle}</span>", unsafe_allow_html=True)
 
-    tab_labels = ["맞춤 보강·성취도", "상담", "숙제", "요약"]
+    tab_labels = ["맞춤 보강·성취도", "상담", "숙제", "집중현황", "요약"]
     selected = st.radio("탭", options=tab_labels, horizontal=True, key="teacher_detail_tab", label_visibility="collapsed")
 
     if selected == "맞춤 보강·성취도":
@@ -72,6 +73,8 @@ def render_student_detail(supabase, teacher_id: str, state: dict, handle_map: di
         render_consult_tab(supabase, teacher_id, str(student_id))
     elif selected == "숙제":
         render_homework_tab(supabase, str(student_id))
+    elif selected == "집중현황":
+        render_focus_section(str(student_id), student_handle)
     else:
         try:
             render_shared_summary(supabase, str(student_id), student_handle, "teacher", teacher_id)

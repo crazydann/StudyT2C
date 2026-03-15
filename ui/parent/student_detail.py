@@ -12,6 +12,7 @@ from ui.parent.data_loaders import (
     update_parent_notification_email,
 )
 from ui.parent.ai_report_tab import render_ai_report_tab
+from ui.focus_ui import render_focus_section
 from services.notification_settings_service import (
     fetch_notification_settings,
     upsert_notification_settings,
@@ -91,7 +92,7 @@ def render_student_detail(supabase, parent_id: str, state: dict):
     with row[1]:
         st.markdown(f"<span style='font-size:16px;font-weight:600;'>{shandle}</span>", unsafe_allow_html=True)
 
-    tab_labels = ["성취도·추이", "상담", "숙제", "요약"]
+    tab_labels = ["성취도·추이", "상담", "숙제", "집중현황", "요약"]
     selected = st.radio("탭", options=tab_labels, horizontal=True, key="parent_detail_tab", label_visibility="collapsed")
 
     if selected == "성취도·추이":
@@ -100,6 +101,8 @@ def render_student_detail(supabase, parent_id: str, state: dict):
         render_consult_tab(supabase, str(sid))
     elif selected == "숙제":
         render_homework_tab(supabase, str(sid))
+    elif selected == "집중현황":
+        render_focus_section(str(sid), shandle)
     else:
         try:
             render_shared_summary(supabase, str(sid), shandle, "parent", parent_id)

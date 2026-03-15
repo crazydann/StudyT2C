@@ -2,7 +2,6 @@ import pandas as pd
 import streamlit as st
 
 from services.analytics_service import get_subject_achievement, get_offtopic_chat_summary, get_next_class_recommendation
-from ui.focus_ui import render_focus_section
 
 
 def render_teacher_ai_report_tab(student_id: str, student_handle: str = ""):
@@ -47,10 +46,6 @@ def render_teacher_ai_report_tab(student_id: str, student_handle: str = ""):
         if badge:
             m_label = f"{badge} · {m_label}"
         st.metric(m_label, f"{total_off}건")
-
-    st.markdown("---")
-
-    render_focus_section(student_id, student_handle or "학생")
 
     st.markdown("---")
 

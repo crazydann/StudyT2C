@@ -10,7 +10,6 @@ from services.analytics_service import (
     get_student_weekly_monthly_report,
     get_learning_trend_summary_sentence,
 )
-from ui.focus_ui import render_focus_section
 from ui.quiz_weakness_ui import render_quiz_weakness_section
 
 
@@ -151,8 +150,6 @@ def render_ai_report_tab(student_id: str, student_handle: str = ""):
                 )
 
     st.markdown("---")
-
-    render_focus_section(student_id, student_handle or "자녀")
 
     render_quiz_weakness_section(student_id, student_handle or "자녀", lookback_days=90)
 

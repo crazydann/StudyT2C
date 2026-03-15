@@ -15,13 +15,14 @@ from ui.quiz_weakness_ui import render_quiz_weakness_section
 
 
 def render_ai_report_tab(student_id: str, student_handle: str = ""):
-    st.subheader("📊 AI 학습 리포트")
+    st.subheader("📊 성취도·추이 리포트")
+    st.caption("우리 아이의 학습 성향·평가·시간에 따른 성취도 추이를 확인하세요. 학원 수업이 우리 아이에게 맞게 조정되고 있음을 보여 주는 자료예요.")
 
     try:
         trend_sentence = get_learning_trend_summary_sentence(student_id, lookback_days=14)
         if trend_sentence:
             with st.container(border=True):
-                st.markdown("💡 **학습 추이** — " + trend_sentence)
+                st.markdown("💡 **어떤 점이 좋아지고, 어떤 점이 막혀 있는지** — " + trend_sentence)
     except Exception:
         pass
 

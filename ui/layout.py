@@ -29,7 +29,8 @@ def render_app_header(role_label: str, user_handle: str | None = "") -> None:
         with left:
             st.markdown(
                 f"<span style='font-size:18px;font-weight:600;'>StudyT2C</span>"
-                f" <span style='font-size:12px;color:#64748b;'>· {role_label}</span>",
+                f" <span style='font-size:11px;color:#64748b;'>오프라인 수업 개인화 보조</span>"
+                f" <span style='font-size:12px;color:#94a3b8;'>· {role_label}</span>",
                 unsafe_allow_html=True,
             )
             render_service_intro_button_inline()
@@ -53,7 +54,8 @@ def render_top_bar_with_tabs(
         with col_logo:
             st.markdown(
                 f"<span style='font-size:16px;font-weight:600;'>StudyT2C</span>"
-                f" <span style='font-size:11px;color:#64748b;'>· {role_label}</span>",
+                f" <span style='font-size:10px;color:#64748b;'>개인화 보조</span>"
+                f" <span style='font-size:11px;color:#94a3b8;'>· {role_label}</span>",
                 unsafe_allow_html=True,
             )
             render_service_intro_button_inline()

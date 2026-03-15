@@ -91,10 +91,10 @@ def render_student_detail(supabase, parent_id: str, state: dict):
     with row[1]:
         st.markdown(f"<span style='font-size:16px;font-weight:600;'>{shandle}</span>", unsafe_allow_html=True)
 
-    tab_labels = ["AI 리포트", "상담", "숙제", "요약"]
+    tab_labels = ["성취도·추이", "상담", "숙제", "요약"]
     selected = st.radio("탭", options=tab_labels, horizontal=True, key="parent_detail_tab", label_visibility="collapsed")
 
-    if selected == "AI 리포트":
+    if selected == "성취도·추이":
         render_ai_report_tab(str(sid), shandle)
     elif selected == "상담":
         render_consult_tab(supabase, str(sid))

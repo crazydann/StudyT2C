@@ -415,7 +415,7 @@ def main():
     role = current_user.get("role")
 
     st.title("StudyT2C")
-    st.caption(f"{current_user.get('handle')} · {role}")
+    st.caption("오프라인 수업 개인화 보조 · " + f"{current_user.get('handle')} · {role}")
 
     route_to_ui(role, current_user)
 

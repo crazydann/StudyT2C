@@ -36,7 +36,7 @@ _REASON_LABELS = {
 
 def render_student_wrongnote(supabase, user, student_id: str, state: dict):
     st.subheader("📒 나의 오답노트")
-    st.caption("오답 문항을 기반으로 유사문제를 생성하고 바로 풀어볼 수 있어요. (최근 채점 기준)")
+    st.caption("오답·취약점이 정리되면 선생님이 다음 수업에서 맞춤 보강해 주세요. 유사문제 생성·복습으로 바로 써 보세요. (최근 채점 기준)")
 
     # 오답 유형 세분화: 찍음 vs 몰라서 vs 실수 등 요약
     try:

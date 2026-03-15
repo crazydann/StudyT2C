@@ -18,7 +18,8 @@ def _fmt_pct(v) -> str:
 
 
 def render_class_dashboard_tab(state: dict, student_ids, handle_map: dict):
-    st.subheader("📊 반 대시보드")
+    st.subheader("📊 반 요약")
+    st.caption("학원 관리가 아닌, 학생별 개인화·맞춤 보강을 위한 요약이에요. 학생별 상세에서 다음 수업 맞춤 보강 포인트를 확인하세요.")
 
     if not student_ids:
         st.info("연결된 학생이 없습니다.")
@@ -27,8 +28,8 @@ def render_class_dashboard_tab(state: dict, student_ids, handle_map: dict):
     # 분석 데이터 로드
     rows = get_class_dashboard_rows([str(sid) for sid in student_ids])
     if not rows:
-        st.info("아직 충분한 데이터가 없어 반 대시보드를 구성하지 못했습니다.")
-        st.caption("👉 학생들이 숙제를 제출하고, 채점·복습 퀴즈를 하면 여기에 통계가 쌓입니다. 학생별 상세에서 진행 상황을 확인해 보세요.")
+        st.info("아직 충분한 데이터가 없어 반 요약을 구성하지 못했습니다.")
+        st.caption("👉 학생들이 숙제를 제출하고, 채점·복습을 하면 여기에 통계가 쌓여요. 학생별 상세에서 맞춤 보강 포인트를 확인해 보세요.")
         return
 
     # 이름/핸들 붙이기

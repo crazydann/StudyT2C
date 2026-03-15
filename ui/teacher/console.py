@@ -33,7 +33,7 @@ def render_teacher_console(supabase, user):
 
     teacher_id = user.get("id")
     teacher_handle = user.get("handle") or "teacher"
-    selected = render_top_bar_with_tabs("선생님", teacher_handle, ["학생별 상세", "반 대시보드"], key="teacher_main_tab")
+    selected = render_top_bar_with_tabs("선생님", teacher_handle, ["학생별 상세", "반 요약"], key="teacher_main_tab")
 
     state = get_role_state("teacher", teacher_id)
     state.setdefault("selected_student", None)
@@ -46,4 +46,5 @@ def render_teacher_console(supabase, user):
         else:
             render_student_detail(supabase, teacher_id, state, handle_map)
     else:
+        # 반 요약: 학원 관리가 아닌 학생별 개인화 맥락의 요약
         render_class_dashboard_tab(state, student_ids, handle_map)

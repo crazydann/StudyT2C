@@ -46,14 +46,15 @@ def render_student_dashboard(
         st.markdown(
             f"<div style='font-size:0.9rem;color:#475569;padding:6px 10px;border-radius:6px;"
             f"background:#f8fafc;border:1px solid #e2e8f0;margin-bottom:8px;'>"
-            f"📌 <strong>오늘 할 일</strong> — 숙제 <strong>{hw_n}</strong>건 · 복습 <strong>{rev_n}</strong>문항</div>",
+            f"📌 <strong>오늘 할 일</strong> — 숙제 <strong>{hw_n}</strong>건 · 복습 <strong>{rev_n}</strong>문항 "
+            f"<span style='color:#64748b;font-size:0.85rem;'>(숙제·복습 데이터가 다음 수업 맞춤 보강에 활용돼요)</span></div>",
             unsafe_allow_html=True,
         )
     except Exception:
         pass
 
-    st.markdown("### 대시보드")
-    st.caption("왼쪽: 목표·복습 | 가운데: AI 튜터 | 오른쪽: 채점")
+    st.markdown("### 숙제·복습")
+    st.caption("숙제·채점·질문을 하면 강점/취약점이 정리되어 선생님의 다음 수업 맞춤 보강에 쓰여요. 왼쪽: 목표·복습 | 가운데: AI 튜터 | 오른쪽: 채점")
 
     render_image = _make_image_renderer(st_image_fullwidth)
 

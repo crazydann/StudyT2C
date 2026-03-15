@@ -9,12 +9,13 @@ def render_teacher_ai_report_tab(student_id: str, student_handle: str = ""):
     try:
         rec = get_next_class_recommendation(student_id, lookback_days=30)
         with st.container(border=True):
-            st.markdown("📌 **다음 수업 권고**")
+            st.markdown("📌 **다음 수업 맞춤 보강 포인트**")
+            st.caption("숙제·복습 데이터를 바탕으로 다음 오프라인 수업에서 바로 적용할 수 있는 보강 포인트예요.")
             st.markdown(rec)
     except Exception:
         pass
 
-    st.subheader("🧠 과목별 성취도 분석")
+    st.subheader("🧠 과목별 성취도 (숙제·복습 기반)")
 
     try:
         data = get_subject_achievement(student_id, lookback_days=30)

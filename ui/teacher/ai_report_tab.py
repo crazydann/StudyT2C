@@ -1,11 +1,19 @@
 import pandas as pd
 import streamlit as st
 
-from services.analytics_service import get_subject_achievement, get_offtopic_chat_summary
+from services.analytics_service import get_subject_achievement, get_offtopic_chat_summary, get_next_class_recommendation
 from ui.focus_ui import render_focus_section
 
 
 def render_teacher_ai_report_tab(student_id: str, student_handle: str = ""):
+    try:
+        rec = get_next_class_recommendation(student_id, lookback_days=30)
+        with st.container(border=True):
+            st.markdown("📌 **다음 수업 권고**")
+            st.markdown(rec)
+    except Exception:
+        pass
+
     st.subheader("🧠 과목별 성취도 분석")
 
     try:

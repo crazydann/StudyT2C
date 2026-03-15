@@ -49,12 +49,13 @@ def _render_parent_detail_settings(supabase, parent_id: str, sid: str, shandle: 
                     st.rerun()
             settings = fetch_notification_settings(supabase, parent_id, str(sid))
             email_enabled = st.toggle("이 학생 알림 받기", value=settings.get("email_enabled", True), key=f"p_email_on_{sid}")
-            receive_offtopic = st.checkbox("공부 외 질문 알림", value=settings.get("receive_offtopic", True), key=f"p_offtopic_{sid}")
             receive_weekly_report = st.checkbox("주간 리포트", value=settings.get("receive_weekly_report", False), key=f"p_weekly_{sid}")
-            receive_daily_summary = st.checkbox("일일 요약", value=settings.get("receive_daily_summary", False), key=f"p_daily_{sid}")
-            freq_labels = {"realtime": "실시간", "daily": "일", "weekly": "주", "monthly": "월"}
-            freq_index = max(0, FREQUENCY_OPTIONS.index(settings.get("frequency", "realtime")) if settings.get("frequency") in FREQUENCY_OPTIONS else 0)
-            frequency = st.selectbox("알림 주기", options=FREQUENCY_OPTIONS, index=freq_index, format_func=lambda x: freq_labels.get(x, x), key=f"p_freq_{sid}")
+            receive_offtopic = st.checkbox("탭 이탈·공부 외 질문 알림", value=settings.get("receive_offtopic", True), key=f"p_offtopic_{sid}")
+            with st.expander("고급 알림 설정", expanded=False):
+                receive_daily_summary = st.checkbox("일일 요약", value=settings.get("receive_daily_summary", False), key=f"p_daily_{sid}")
+                freq_labels = {"realtime": "실시간", "daily": "일", "weekly": "주", "monthly": "월"}
+                freq_index = max(0, FREQUENCY_OPTIONS.index(settings.get("frequency", "realtime")) if settings.get("frequency") in FREQUENCY_OPTIONS else 0)
+                frequency = st.selectbox("알림 주기", options=FREQUENCY_OPTIONS, index=freq_index, format_func=lambda x: freq_labels.get(x, x), key=f"p_freq_{sid}")
             if st.button("수신 설정 저장", key=f"p_save_settings_{sid}"):
                 if upsert_notification_settings(supabase, parent_id, str(sid), "parent", email_enabled=email_enabled, receive_offtopic=receive_offtopic, receive_weekly_report=receive_weekly_report, receive_daily_summary=receive_daily_summary, frequency=frequency):
                     st.success("저장되었습니다.")

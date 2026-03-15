@@ -147,7 +147,7 @@ def _render_teacher_consult_summary_and_history(supabase, student_id: str):
             st.write(selected.get("note"))
 
         snapshot = selected.get("snapshot")
-        if snapshot is not None:
+        if snapshot is not None and st.session_state.get("dev_mode", False):
             render_dev_json(
                 "상담 로그 KPI 스냅샷",
                 snapshot,
@@ -206,20 +206,21 @@ def render_consult_tab(supabase, student_id: str):
         st.markdown("#### 📉 최근 채점 오답률 추이(제출 기준)")
         st.line_chart(df_gt[["wrong_rate_pct"]])
 
-    render_dev_json(
-        "시스템 KPI 스냅샷",
-        {
-            "homework": {
-                "lookback_days": hw.get("lookback_days"),
-                "assigned_total": hw.get("assigned_total"),
-                "submission_rate": hw.get("submission_rate"),
-                "submitted_total": hw.get("submitted_total"),
+    if st.session_state.get("dev_mode", False):
+        render_dev_json(
+            "시스템 KPI 스냅샷",
+            {
+                "homework": {
+                    "lookback_days": hw.get("lookback_days"),
+                    "assigned_total": hw.get("assigned_total"),
+                    "submission_rate": hw.get("submission_rate"),
+                    "submitted_total": hw.get("submitted_total"),
+                },
+                "grading_trend": gt,
+                "learning_profile": profile,
+                "non_submit_reasons": ns,
+                "unsubmitted_homework_count": report.get("unsubmitted_homework_count"),
+                "consult_script": report.get("consult_script"),
             },
-            "grading_trend": gt,
-            "learning_profile": profile,
-            "non_submit_reasons": ns,
-            "unsubmitted_homework_count": report.get("unsubmitted_homework_count"),
-            "consult_script": report.get("consult_script"),
-        },
-        key=f"p_system_kpi_{student_id}",
-    )
+            key=f"p_system_kpi_{student_id}",
+        )

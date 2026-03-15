@@ -33,17 +33,17 @@ def render_teacher_console(supabase, user):
 
     teacher_id = user.get("id")
     teacher_handle = user.get("handle") or "teacher"
-    selected = render_top_bar_with_tabs("선생님", teacher_handle, ["반 대시보드", "학생별 상세"], key="teacher_main_tab")
+    selected = render_top_bar_with_tabs("선생님", teacher_handle, ["학생별 상세", "반 대시보드"], key="teacher_main_tab")
 
     state = get_role_state("teacher", teacher_id)
     state.setdefault("selected_student", None)
     student_ids = fetch_teacher_student_ids(supabase, teacher_id)
     handle_map = fetch_user_handles_by_ids(supabase, student_ids)
 
-    if selected == "반 대시보드":
-        render_class_dashboard_tab(state, student_ids, handle_map)
-    else:
+    if selected == "학생별 상세":
         if state["selected_student"] is None:
             render_student_list(state, student_ids, handle_map)
         else:
             render_student_detail(supabase, teacher_id, state, handle_map)
+    else:
+        render_class_dashboard_tab(state, student_ids, handle_map)

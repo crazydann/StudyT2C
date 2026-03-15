@@ -122,6 +122,53 @@ def get_student_learning_status(student_id: str) -> dict:
     }
 
 
+def get_today_todo(student_id: str) -> Dict[str, Any]:
+    """
+    오늘 할 일: 미제출 숙제 건수, 복습 예정 문항 수.
+    대시보드 "오늘 할 일" 띠·진입점 단순화용.
+    """
+    review_count = 0
+    try:
+        review_res = _execute_with_retry(
+            lambda: supabase.table("problem_items")
+            .select("id", count="exact")
+            .eq("student_user_id", student_id)
+            .lte("next_review_at", "now()")
+            .execute()
+        )
+        review_count = review_res.count if getattr(review_res, "count", None) else 0
+    except Exception:
+        pass
+
+    homework_count = 0
+    try:
+        assigns = (
+            _execute_with_retry(
+                lambda: supabase.table("homework_assignments")
+                .select("id")
+                .eq("student_user_id", student_id)
+                .execute()
+            )
+        ).data or []
+        for a in assigns:
+            aid = a.get("id")
+            if not aid:
+                continue
+            sub = (
+                supabase.table("homework_submissions")
+                .select("id")
+                .eq("assignment_id", aid)
+                .limit(1)
+                .execute()
+            ).data
+            if not sub:
+                homework_count += 1
+    except Exception:
+        pass
+
+    return {"homework_count": homework_count, "review_count": review_count}
+
+
 def get_today_goal_progress(student_id: str) -> Dict[str, Any]:
     """오늘 목표 진행: 오늘(UTC) 채점 횟수·질문 수. 목표는 채점 1회, 질문 5개."""
     now = _utc_now()
@@ -479,6 +526,50 @@ def _get_top_wrong(student_id: str, top_k: int = 3) -> Dict[str, List[str]]:
         "top_wrong_concepts": [k for k, _ in concept_counter.most_common(top_k)],
         "top_wrong_reasons": [k for k, _ in reason_counter.most_common(top_k)],
     }
+
+
+def get_learning_trend_summary_sentence(student_id: str, lookback_days: int = 14) -> str:
+    """
+    학부모용 학습 추이 한두 문장. "최근 N일 질문 수·오답률·자주 틀리는 유형" 요약.
+    """
+    try:
+        data = get_subject_achievement(student_id, lookback_days=lookback_days)
+        summary = data.get("summary", {}) or {}
+        total_q = summary.get("total_questions", 0) or 0
+        avg_cr = summary.get("avg_correct_rate")
+        cr_str = f"{int(avg_cr * 100)}%" if isinstance(avg_cr, (int, float)) else "N/A"
+        wrong = get_wrong_reason_summary(student_id, lookback_days=lookback_days)
+        by_reason = wrong.get("by_reason") or []
+        top_label = by_reason[0].get("label") if by_reason else None
+        parts = [f"최근 {lookback_days}일간 튜터 질문 {total_q}건, 평균 정답률 {cr_str}입니다."]
+        if top_label:
+            parts.append(f"자주 틀리는 유형은 **{top_label}**입니다.")
+        return " ".join(parts)
+    except Exception:
+        return ""
+
+
+def get_next_class_recommendation(student_id: str, lookback_days: int = 30) -> str:
+    """
+    선생님 "다음 수업 준비"용 한 줄 권고.
+    취약 개념·오답 유형을 바탕으로 "이번 주에는 ○○ 보강 권장" 문장 반환.
+    """
+    try:
+        top = _get_top_wrong(student_id, top_k=3)
+        concepts = top.get("top_wrong_concepts") or []
+        reasons = top.get("top_wrong_reasons") or []
+        reason_ko = [_REASON_KO.get(r, r) for r in reasons]
+        if not concepts and not reason_ko:
+            return "아직 오답·취약점 데이터가 부족합니다. 숙제·채점을 진행하면 권고 문구가 생성됩니다."
+        parts = []
+        if concepts:
+            parts.append(f"**{', '.join(concepts)}** 보강 권장")
+        if reason_ko:
+            parts.append(f"(오답 유형: {', '.join(reason_ko)})")
+        return "이번 주에는 " + " ".join(parts) + "."
+    except Exception:
+        return "권고 문구를 생성할 수 없습니다."
+}
 
 
 # ---------------------------

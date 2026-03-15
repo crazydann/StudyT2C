@@ -8,6 +8,7 @@ from services.analytics_service import (
     get_study_chat_history,
     get_wrong_reason_summary,
     get_student_weekly_monthly_report,
+    get_learning_trend_summary_sentence,
 )
 from ui.focus_ui import render_focus_section
 from ui.quiz_weakness_ui import render_quiz_weakness_section
@@ -15,6 +16,14 @@ from ui.quiz_weakness_ui import render_quiz_weakness_section
 
 def render_ai_report_tab(student_id: str, student_handle: str = ""):
     st.subheader("📊 AI 학습 리포트")
+
+    try:
+        trend_sentence = get_learning_trend_summary_sentence(student_id, lookback_days=14)
+        if trend_sentence:
+            with st.container(border=True):
+                st.markdown("💡 **학습 추이** — " + trend_sentence)
+    except Exception:
+        pass
 
     try:
         data = get_subject_achievement(student_id, lookback_days=30)

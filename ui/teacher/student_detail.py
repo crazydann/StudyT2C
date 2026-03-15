@@ -26,12 +26,13 @@ def _render_teacher_detail_settings(supabase, teacher_id: str, student_id: str):
                     st.rerun()
             settings = fetch_notification_settings(supabase, teacher_id, str(student_id))
             email_enabled = st.toggle("이 학생 알림 받기", value=settings.get("email_enabled", True), key=f"t_email_on_{student_id}")
-            receive_offtopic = st.checkbox("공부 외 질문 알림", value=settings.get("receive_offtopic", True), key=f"t_offtopic_{student_id}")
             receive_weekly_report = st.checkbox("주간 리포트", value=settings.get("receive_weekly_report", False), key=f"t_weekly_{student_id}")
-            receive_daily_summary = st.checkbox("일일 요약", value=settings.get("receive_daily_summary", False), key=f"t_daily_{student_id}")
-            freq_labels = {"realtime": "실시간", "daily": "일", "weekly": "주", "monthly": "월"}
-            freq_index = max(0, FREQUENCY_OPTIONS.index(settings.get("frequency", "realtime")) if settings.get("frequency") in FREQUENCY_OPTIONS else 0)
-            frequency = st.selectbox("알림 주기", options=FREQUENCY_OPTIONS, index=freq_index, format_func=lambda x: freq_labels.get(x, x), key=f"t_freq_{student_id}")
+            receive_offtopic = st.checkbox("탭 이탈·공부 외 질문 알림", value=settings.get("receive_offtopic", True), key=f"t_offtopic_{student_id}")
+            with st.expander("고급 알림 설정", expanded=False):
+                receive_daily_summary = st.checkbox("일일 요약", value=settings.get("receive_daily_summary", False), key=f"t_daily_{student_id}")
+                freq_labels = {"realtime": "실시간", "daily": "일", "weekly": "주", "monthly": "월"}
+                freq_index = max(0, FREQUENCY_OPTIONS.index(settings.get("frequency", "realtime")) if settings.get("frequency") in FREQUENCY_OPTIONS else 0)
+                frequency = st.selectbox("알림 주기", options=FREQUENCY_OPTIONS, index=freq_index, format_func=lambda x: freq_labels.get(x, x), key=f"t_freq_{student_id}")
             if st.button("수신 설정 저장", key=f"t_save_settings_{student_id}"):
                 if upsert_notification_settings(supabase, teacher_id, str(student_id), "teacher", email_enabled=email_enabled, receive_offtopic=receive_offtopic, receive_weekly_report=receive_weekly_report, receive_daily_summary=receive_daily_summary, frequency=frequency):
                     st.success("저장되었습니다.")

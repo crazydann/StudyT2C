@@ -84,6 +84,8 @@ def render_student_wrongnote(supabase, user, student_id: str, state: dict):
         st.caption("※ 과거 전체 오답노트는 '기록' 탭에서 확인 가능합니다.")
         return
 
+    st.caption("💡 복습이 필요한 문항은 **학습** 탭 왼쪽 '오늘 복습'에서 확인하세요.")
+
     can_show_answer = bool(user.get("show_practice_answer"))
     studying = _is_studying(user)
 
@@ -110,6 +112,9 @@ def render_student_wrongnote(supabase, user, student_id: str, state: dict):
         key = f"wn_{student_id}_{pid or item_no}"
 
         with st.expander(f"🔴 오답 {item_no}번", expanded=False):
+            kc_item = it.get("key_concepts") or []
+            if kc_item:
+                st.caption("**부족했던 개념:** " + ", ".join(kc_item) if isinstance(kc_item[0], str) else ", ".join(str(c) for c in kc_item))
             st.write(qtext)
             if summ:
                 st.info(summ)
@@ -272,4 +277,4 @@ def render_student_wrongnote(supabase, user, student_id: str, state: dict):
 
             kc = pstate.get("key_concepts") or []
             if kc:
-                st.caption("핵심 개념: " + ", ".join(kc))
+                st.caption("**이번에 부족했던 개념:** " + ", ".join(kc))

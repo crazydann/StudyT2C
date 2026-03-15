@@ -90,7 +90,7 @@ def render_consult_tab(supabase, teacher_id: str, student_id: str):
             st.write(row.get("note"))
 
         snapshot = row.get("snapshot")
-        if snapshot is not None:
+        if snapshot is not None and st.session_state.get("dev_mode", False):
             render_dev_json(
                 "KPI 스냅샷",
                 snapshot,

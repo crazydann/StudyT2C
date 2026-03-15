@@ -76,12 +76,10 @@ def render_student_console(supabase, user):
             st.toggle("개발 모드", key="dev_mode")
             st.toggle("이미지 크게 보기", key="st_image_fullwidth")
 
-    # 상단 한 줄: 로고 | 탭(브라우저 탭 느낌) | 아바타 → 탭이 메인
-    tab_labels = ["학습", "숙제", "오답노트", "기록"]
+    # 상단 한 줄: 학습(메인) | 숙제·오답·기록(서브) — 오프라인 보조 본질에 맞게 학습이 메인
+    tab_labels = ["학습", "숙제·오답·기록"]
     selected_label = render_top_bar_with_tabs("학생", student_handle, tab_labels, key="student_main_tab")
-    tab_map = {"학습": "dashboard", "숙제": "homework", "오답노트": "wrongnote", "기록": "history"}
-    active_tab = tab_map.get(selected_label, "dashboard")
-    state["active_tab"] = active_tab
+    state["active_tab"] = "dashboard" if selected_label == "학습" else "sub"
 
     st_image_fullwidth = _make_st_image_helper()
 
@@ -93,8 +91,7 @@ def render_student_console(supabase, user):
     except Exception:
         pass
 
-    # 탭 선택에 따라 메인 영역 = 해당 탭 내용만 (내용 위주)
-    if active_tab == "dashboard":
+    if state["active_tab"] == "dashboard":
         try:
             _safe_call(
                 render_student_dashboard,
@@ -106,18 +103,21 @@ def render_student_console(supabase, user):
             )
         except Exception as e:
             show_error("대시보드 로드 실패", e, context="render_student_dashboard", show_trace=bool(st.session_state.get("dev_mode", False)))
-    elif active_tab == "homework":
-        try:
-            _safe_call(render_student_homework, supabase, user, student_id, state, st_image_fullwidth=st_image_fullwidth)
-        except Exception as e:
-            show_error("내 숙제 로드 실패", e, context="render_student_homework", show_trace=bool(st.session_state.get("dev_mode", False)))
-    elif active_tab == "wrongnote":
-        try:
-            _safe_call(render_student_wrongnote, supabase, user, student_id, state, st_image_fullwidth=st_image_fullwidth)
-        except Exception as e:
-            show_error("오답노트 로드 실패", e, context="render_student_wrongnote", show_trace=bool(st.session_state.get("dev_mode", False)))
     else:
-        try:
-            _safe_call(render_student_history, supabase, user, student_id, state, st_image_fullwidth=st_image_fullwidth)
-        except Exception as e:
-            show_error("기록 로드 실패", e, context="render_student_history", show_trace=bool(st.session_state.get("dev_mode", False)))
+        # 숙제·오답·기록: 서브 메뉴에서 선택
+        sub_label = st.radio("", options=["숙제", "오답노트", "기록"], horizontal=True, key="student_sub_tab", label_visibility="collapsed")
+        if sub_label == "숙제":
+            try:
+                _safe_call(render_student_homework, supabase, user, student_id, state, st_image_fullwidth=st_image_fullwidth)
+            except Exception as e:
+                show_error("내 숙제 로드 실패", e, context="render_student_homework", show_trace=bool(st.session_state.get("dev_mode", False)))
+        elif sub_label == "오답노트":
+            try:
+                _safe_call(render_student_wrongnote, supabase, user, student_id, state, st_image_fullwidth=st_image_fullwidth)
+            except Exception as e:
+                show_error("오답노트 로드 실패", e, context="render_student_wrongnote", show_trace=bool(st.session_state.get("dev_mode", False)))
+        else:
+            try:
+                _safe_call(render_student_history, supabase, user, student_id, state, st_image_fullwidth=st_image_fullwidth)
+            except Exception as e:
+                show_error("기록 로드 실패", e, context="render_student_history", show_trace=bool(st.session_state.get("dev_mode", False)))

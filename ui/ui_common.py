@@ -78,3 +78,15 @@ def get_role_state(role_key: str, user_id: str) -> dict:
     if user_id not in states:
         states[user_id] = {}
     return states[user_id]
+
+
+# MVP: 부모/선생님 화면에서 표시할 학생은 David, Joshua만 (나머지 숨김)
+MVP_STUDENT_HANDLES = ("david", "joshua")
+
+
+def filter_student_ids_for_mvp(ids: list, handle_map: dict) -> list:
+    """handle_map에서 handle이 david/joshua인 id만 남깁니다."""
+    if not handle_map:
+        return list(ids)
+    allowed = {str(k) for k, h in handle_map.items() if (h or "").strip().lower() in MVP_STUDENT_HANDLES}
+    return [i for i in ids if str(i) in allowed]

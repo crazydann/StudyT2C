@@ -74,7 +74,7 @@ def render_focus_section(student_id: str, student_handle: str) -> None:
     # ----- 이메일 알림: 안내 + 수동 발송 버튼 + 왜 자동 발송이 안 되는지 -----
     st.markdown("**📧 탭 이탈 이메일 알림**")
     st.caption(
-        "알림은 **이 화면(AI 리포트)을 열었을 때**, 자녀가 **최근 5분 이내** 탭을 벗어난 경우에만 자동 발송됩니다. "
+        "알림은 **이 화면(집중현황)을 열었을 때**, 자녀가 **최근 5분 이내** 탭을 벗어난 경우에만 자동 발송됩니다. "
         "**주기(일/주/월)** 는 ‘실시간 알림 수신자’ 선정에만 쓰이며, 예약 발송(크론)은 없습니다."
     )
     if st.button("📤 탭 이탈 알림 수동 발송", key=f"focus_manual_send_{student_id}"):
@@ -101,7 +101,7 @@ def render_focus_section(student_id: str, student_handle: str) -> None:
             st.success("알림 수신자에게 탭 이탈 알림 메일을 발송했습니다.")
 
     if not usage_start and not usage_end:
-        st.caption("오늘 기록된 탭 사용 이벤트가 없습니다. 학생이 학습 대시보드를 켜 두면 자동으로 기록됩니다.")
+        st.caption("오늘 기록된 탭 사용 이벤트가 없습니다. 학생이 숙제·복습(학습) 화면을 켜 두면 자동으로 기록됩니다.")
         return
 
     # ----- 전체: 오늘 첫 사용 ~ 마지막 사용 -----

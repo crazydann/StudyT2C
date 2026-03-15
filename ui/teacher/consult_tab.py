@@ -12,6 +12,7 @@ from ui.teacher.data_loaders import fetch_teacher_consult_logs, insert_teacher_c
 
 def render_consult_tab(supabase, teacher_id: str, student_id: str):
     st.subheader("🧾 상담 리포트 (선생님용)")
+    st.caption("다음 수업 맞춤 보강을 위한 상담 자료예요.")
 
     mode_key = f"t_consult_mode_{teacher_id}_{student_id}"
     if mode_key not in st.session_state:

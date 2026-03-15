@@ -76,7 +76,7 @@ def render_student_wrongnote(supabase, user, student_id: str, state: dict):
 
     if not graded:
         st.info("아직 채점된 기록이 없거나, 최근 채점 제출에서 오답 문항을 찾지 못했습니다.")
-        st.caption("👉 **대시보드** 탭에서 문제 사진을 올리고 **AI 채점**을 받으면 오답노트에 자동으로 쌓여요. 첫 채점을 올려 보세요.")
+        st.caption("👉 **학습** 탭에서 문제 사진을 올리고 **채점**을 받으면 오답·취약점이 쌓여 선생님 맞춤 보강에 활용돼요. 첫 채점을 올려 보세요.")
         return
 
     if not wrongs:

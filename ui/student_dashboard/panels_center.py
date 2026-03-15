@@ -103,7 +103,7 @@ def _render_recent_grading_history(student_id: str, user: dict):
 
     if not id_by_label:
         st.caption("채점 기록을 표시할 수 없습니다.")
-        st.caption("👉 오른쪽 **문제 채점기**에서 이미지/PDF를 올리고 **AI 채점 요청**을 하면 여기에 기록이 쌓여요.")
+        st.caption("👉 오른쪽 **채점기**에서 이미지/PDF를 올리고 채점하면 기록이 쌓여요. (선생님 맞춤 보강에 활용)")
         return
 
     sel = st.selectbox("기록 선택", options=labels, key=f"hist_sel_{student_id}")

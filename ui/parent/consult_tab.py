@@ -157,6 +157,7 @@ def _render_teacher_consult_summary_and_history(supabase, student_id: str):
 
 def render_consult_tab(supabase, student_id: str):
     st.subheader("🧾 상담 리포트 (학부모용)")
+    st.caption("학원 수업·성취도 신뢰를 위한 상담 자료예요.")
 
     _render_teacher_consult_summary_and_history(supabase, student_id)
     st.divider()

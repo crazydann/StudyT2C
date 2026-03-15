@@ -68,12 +68,7 @@ def render_student_console(supabase, user):
     if "dev_mode" not in st.session_state:
         st.session_state["dev_mode"] = False
     if "st_image_fullwidth" not in st.session_state:
-        st.session_state["st_image_fullwidth"] = True
-    with st.sidebar:
-        with st.expander("설정", expanded=False):
-            if not st.session_state.get("_admin_flow"):
-                st.toggle("개발 모드", key="dev_mode")
-            st.toggle("이미지 크게 보기", key="st_image_fullwidth")
+        st.session_state["st_image_fullwidth"] = True  # 기본 True, 왼쪽 설정 제거로 토글 없음
 
     # 상단 한 줄: 학습(메인) | 숙제·오답·기록(서브) — 오프라인 보조 본질에 맞게 학습이 메인
     tab_labels = ["학습", "숙제·오답·기록"]

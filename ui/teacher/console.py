@@ -13,24 +13,6 @@ from ui.layout import render_top_bar_with_tabs
 def render_teacher_console(supabase, user):
     if "dev_mode" not in st.session_state:
         st.session_state["dev_mode"] = False
-    with st.sidebar:
-        with st.expander("설정", expanded=False):
-            if not st.session_state.get("_admin_flow"):
-                st.toggle("개발 모드", key="dev_mode")
-        if bool(st.session_state.get("dev_mode", False)):
-            with st.expander("개발자 도구", expanded=False):
-                if st.button("데모 데이터 생성", key="t_seed_demo"):
-                    try:
-                        info = seed_demo_basic()
-                        st.success(f"완료: {info['teacher']['handle']} 등")
-                    except Exception as e:
-                        st.error(str(e))
-                if st.button("데모 데이터 삭제", key="t_delete_demo", type="secondary"):
-                    try:
-                        result = delete_demo_data()
-                        st.success(result.get("message", "삭제 완료.")) if result.get("ok") else st.error(result.get("message", "실패"))
-                    except Exception as e:
-                        st.error(str(e))
 
     teacher_id = user.get("id")
     teacher_handle = user.get("handle") or "teacher"

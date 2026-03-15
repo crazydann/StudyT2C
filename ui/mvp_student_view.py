@@ -1,6 +1,6 @@
 # ui/mvp_student_view.py
 """
-로그인학생 화면: 첨부 UI 스타일 — 헤더(타이머·과목·쉬는시간), 좌(질의 개념 복습·문제 만들기·지난 문제들·추천 개념), 중(AI 튜터), 우(문제 채점기·지난 채점 이력).
+로그인학생 화면: 헤더(학생명·로그아웃만), 좌(질의 개념 복습·문제 만들기·지난 문제들·추천 개념), 중(AI 튜터), 우(문제 채점기·지난 채점 이력). 시간·과목·학습모드 안내 제거.
 """
 import time
 import streamlit as st
@@ -135,9 +135,9 @@ def render_mvp_student_view(supabase, user: dict):
 
     _apply_student_layout_css()
 
-    # 1. 헤더: 왼쪽(학생 이름·집중 상태) | 가운데(타이머) | 오른쪽(과목·로그아웃)
+    # 1. 헤더: 왼쪽(학생 이름·집중 상태·서비스 소개) | 오른쪽(로그아웃) — 시간·과목·학습모드 안내 제거, 추천개념이 맨 위에 보이도록
     studying = effective_status == "studying"
-    header_left, header_center, header_right = st.columns([2, 1, 2])
+    header_left, header_right = st.columns([4, 1])
     with header_left:
         status_label = "현재 집중 학습 중" if studying else "쉬는 시간"
         st.markdown(
@@ -147,34 +147,11 @@ def render_mvp_student_view(supabase, user: dict):
         )
         from ui.service_intro_dialog import render_service_intro_button_inline
         render_service_intro_button_inline()
-    with header_center:
-        if studying and state.get("study_timer_start"):
-            elapsed = int(time.time() - state["study_timer_start"])
-            h, r = divmod(elapsed, 3600)
-            m, s = divmod(r, 60)
-            timer_str = f"{h:02d}:{m:02d}:{s:02d}"
-        else:
-            timer_str = "00:00:00"
-        st.markdown(
-            f'<div style="font-size:1.25rem; font-weight:700; color:#16a34a;">{timer_str}</div>',
-            unsafe_allow_html=True,
-        )
     with header_right:
-        r1, r2 = st.columns([2, 1])
-        with r1:
-            st.selectbox(
-                "과목",
-                options=["수학", "국어", "영어", "과학", "사회"],
-                index=0,
-                key="mvp_subject",
-                label_visibility="collapsed",
-            )
-            st.caption("학습/쉬는시간 모드는 학부모 화면에서만 변경할 수 있어요.")
-        with r2:
-            if st.button("로그아웃", key="mvp_logout", type="secondary"):
-                st.session_state.pop("mvp_user", None)
-                st.session_state.pop("current_user", None)
-                st.rerun()
+        if st.button("로그아웃", key="mvp_logout", type="secondary"):
+            st.session_state.pop("mvp_user", None)
+            st.session_state.pop("current_user", None)
+            st.rerun()
 
     effective_user = {**user, "status": effective_status}
 

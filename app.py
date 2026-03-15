@@ -210,9 +210,10 @@ def _filter_users_by_role(users: list, role: str):
     return out
 
 
-def _render_admin_header_card(users):
-    """메인 상단: StudyT2C + 역할 버튼(학생/부모/선생님) + 서비스 소개 + 설정."""
+def _render_admin_header_card(users, current_user=None):
+    """메인 상단: StudyT2C + 역할 버튼 + (자녀/학생 설정 팝오버) + 서비스 소개 + 설정."""
     from ui.service_intro_dialog import render_service_intro_button_inline
+    from ui.ui_common import get_role_state
 
     role_opts = _admin_role_options()
     if "admin_role" not in st.session_state:
@@ -232,6 +233,26 @@ def _render_admin_header_card(users):
                         st.session_state.pop("current_user", None)
                         st.rerun()
         with row[2]:
+            # 자녀 설정 / 학생 설정: 설정 버튼 왼쪽, 오버레이 팝오버
+            if current_user:
+                role = current_user.get("role")
+                if role == "parent":
+                    state = get_role_state("parent", current_user["id"])
+                    sel = state.get("selected_student") or {}
+                    sid = sel.get("id") if isinstance(sel, dict) else None
+                    shandle = (sel.get("handle") if isinstance(sel, dict) else None) or "student"
+                    if sid:
+                        with st.popover("⚙️ 자녀 설정"):
+                            from ui.parent.student_detail import render_parent_settings_content
+                            render_parent_settings_content(supabase, current_user["id"], str(sid), shandle)
+                elif role == "teacher":
+                    state = get_role_state("teacher", current_user["id"])
+                    sel = state.get("selected_student")
+                    student_id = sel.get("id") if isinstance(sel, dict) else sel
+                    if student_id:
+                        with st.popover("⚙️ 학생 설정"):
+                            from ui.teacher.student_detail import render_teacher_settings_content
+                            render_teacher_settings_content(supabase, current_user["id"], str(student_id))
             render_service_intro_button_inline()
             with st.expander("설정", expanded=False):
                 if "admin_dev_mode" not in st.session_state:
@@ -256,7 +277,7 @@ def main_account_picker_or_console(users):
         st.session_state.pop("current_user", None)
         current = None
 
-    _render_admin_header_card(users)
+    _render_admin_header_card(users, current_user=current)
 
     filtered = _filter_users_by_role(users, role)
     if not filtered:
@@ -376,6 +397,11 @@ def main():
         st.session_state.pop("service_intro_authenticated", None)
 
     st.session_state["_admin_flow"] = True  # 어드민 플로우에서만 설정; 콘솔에서 dev_mode 중복 키 방지
+    # 어드민: 왼쪽 프레임(사이드바) 완전 숨김
+    st.markdown(
+        "<style>section[data-testid='stSidebar']{display:none !important;}</style>",
+        unsafe_allow_html=True,
+    )
     current_user = main_account_picker_or_console(users)
     if not current_user:
         st.stop()

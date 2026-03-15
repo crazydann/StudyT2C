@@ -11,10 +11,6 @@ from ui.layout import render_app_header
 def render_parent_console(supabase, user):
     if "dev_mode" not in st.session_state:
         st.session_state["dev_mode"] = False
-    with st.sidebar:
-        with st.expander("설정", expanded=False):
-            if not st.session_state.get("_admin_flow"):
-                st.toggle("개발 모드", key="dev_mode")
 
     parent_id = user["id"]
     parent_handle = user.get("handle") or "parent"

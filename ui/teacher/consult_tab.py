@@ -37,6 +37,13 @@ def render_consult_tab(supabase, teacher_id: str, student_id: str):
     one_liner = st.text_input("한 줄 요약(학부모에게 설명용)", value=default_one, key=f"t_one_{student_id}")
     note = st.text_area("선생님 메모(내부 기록)", value="", height=140, key=f"t_note_{student_id}")
 
+    plan_done = st.radio(
+        "오늘 플랜 진행 정도",
+        options=["충분히 다룸", "일부만 다룸", "거의 못 다룸"],
+        horizontal=True,
+        key=f"t_plan_done_{student_id}",
+    )
+
     c1, c2 = st.columns([1, 3])
     with c1:
         if st.button("💾 상담 로그 저장", key=f"t_save_consult_{student_id}"):
@@ -46,7 +53,7 @@ def render_consult_tab(supabase, teacher_id: str, student_id: str):
                 student_id=student_id,
                 one_liner=one_liner,
                 note=note,
-                snapshot=safe_json(report),
+                snapshot=safe_json({**report, "plan_done": plan_done}),
             )
             if ok:
                 st.success("저장 완료 ✅")

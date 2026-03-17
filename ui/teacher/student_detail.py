@@ -8,7 +8,7 @@ from ui.teacher.consult_tab import render_consult_tab
 from ui.teacher.homework_tab import render_homework_tab
 from ui.teacher.ai_report_tab import render_teacher_ai_report_tab
 from ui.focus_ui import render_focus_section
-from services.analytics_service import get_next_class_plan
+from services.analytics_service import get_next_class_plan, get_student_profile
 
 
 def render_student_detail(supabase, teacher_id: str, state: dict, handle_map: dict):
@@ -27,7 +27,36 @@ def render_student_detail(supabase, teacher_id: str, state: dict, handle_map: di
 
     # 학생 설정은 어드민 상단 '학생 설정' 팝오버에서 표시 (사이드바 제거)
 
-    # 상단: 다음 수업 추천 플랜 (선생님 수업 준비용)
+    # 상단 1: 학생 스냅샷 (강점/약점 개념, 질문 스타일)
+    try:
+        profile = get_student_profile(str(student_id))
+    except Exception:
+        profile = {}
+
+    concepts = profile.get("concepts") or []
+    strong = (profile.get("peer_compare") or {}).get("strong_concepts") or []
+    weak = (profile.get("peer_compare") or {}).get("weak_concepts") or []
+    qs = profile.get("questions_style") or {}
+
+    if concepts:
+        with st.container(border=True):
+            st.markdown("#### 학생 스냅샷 (최근 4주)")
+            c1, c2 = st.columns(2)
+            with c1:
+                if strong:
+                    st.markdown(f"**강한 개념**: {', '.join(strong)}")
+                if weak:
+                    st.markdown(f"**약한 개념**: {', '.join(weak)}")
+            with c2:
+                try:
+                    cq = int((qs.get("conceptual_ratio") or 0) * 100)
+                    pq = int((qs.get("procedural_ratio") or 0) * 100)
+                    kq = int((qs.get("careless_ratio") or 0) * 100)
+                    st.caption(f"질문 스타일 · 개념 {cq}% / 풀이 {pq}% / 실수확인 {kq}%")
+                except Exception:
+                    pass
+
+    # 상단 2: 다음 수업 추천 플랜 (선생님 수업 준비용)
     try:
         plan = get_next_class_plan(str(student_id))
     except Exception:

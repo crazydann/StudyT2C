@@ -11,7 +11,7 @@ import config
 from ui.student_dashboard.panels_center import render_center_panel
 from ui.student_dashboard.panels_grading import render_grading_panel
 from ui.student_dashboard.focus_tracker_component import render_focus_tracker
-from services.analytics_service import get_study_chat_history
+from services.analytics_service import get_study_chat_history, get_student_profile
 from services.llm_service import generate_quiz_from_qa, recommend_concepts_from_chat, explain_concept
 from services.concept_review_service import save_attempt, save_quiz, list_quizzes, get_quiz_by_id
 from ui.quiz_weakness_ui import render_quiz_weakness_section
@@ -181,6 +181,21 @@ def render_mvp_student_view(supabase, user: dict):
             st.markdown('</div>', unsafe_allow_html=True)
         from ui.service_intro_dialog import render_service_intro_button_inline
         render_service_intro_button_inline()
+
+        # 학생 본인 스냅샷 (간단 버전)
+        try:
+            profile = get_student_profile(str(student_id))
+        except Exception:
+            profile = {}
+        strong = (profile.get("peer_compare") or {}).get("strong_concepts") or []
+        weak = (profile.get("peer_compare") or {}).get("weak_concepts") or []
+        if strong or weak:
+            with st.container(border=True):
+                s_txt = ", ".join(strong[:2]) if strong else "아직 분석 중이에요"
+                w_txt = ", ".join(weak[:2]) if weak else "특별히 약한 개념은 없어요"
+                st.markdown(f"**📌 잘하는 개념**: {s_txt}")
+                st.markdown(f"**🧩 더 연습하면 좋은 개념**: {w_txt}")
+
         st.markdown("")  # 여백
         _render_left_sidebar(str(student_id), student_handle, state)
         st.markdown('</div>', unsafe_allow_html=True)

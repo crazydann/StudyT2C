@@ -8,6 +8,7 @@ from ui.teacher.consult_tab import render_consult_tab
 from ui.teacher.homework_tab import render_homework_tab
 from ui.teacher.ai_report_tab import render_teacher_ai_report_tab
 from ui.focus_ui import render_focus_section
+from services.analytics_service import get_next_class_plan
 
 
 def render_student_detail(supabase, teacher_id: str, state: dict, handle_map: dict):
@@ -25,6 +26,25 @@ def render_student_detail(supabase, teacher_id: str, state: dict, handle_map: di
         return
 
     # 학생 설정은 어드민 상단 '학생 설정' 팝오버에서 표시 (사이드바 제거)
+
+    # 상단: 다음 수업 추천 플랜 (선생님 수업 준비용)
+    try:
+        plan = get_next_class_plan(str(student_id))
+    except Exception:
+        plan = {}
+
+    focus = plan.get("focus_concepts") or []
+    practice = plan.get("practice_types") or []
+    if focus or practice:
+        with st.container(border=True):
+            st.markdown("#### 다음 수업 추천 플랜")
+            for i, item in enumerate(focus, start=1):
+                st.checkbox(
+                    f"{i}. {item.get('name', '')} — {item.get('suggestion', '')}",
+                    key=f"t_next_plan_{student_id}_{i}",
+                )
+            for j, pt in enumerate(practice, start=1):
+                st.caption(f"보조 활동 {j}: {pt.get('type', '')} · {pt.get('suggestion', '')}")
 
     row = st.columns([1, 4])
     with row[0]:

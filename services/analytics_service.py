@@ -207,6 +207,230 @@ def get_today_goal_progress(student_id: str) -> Dict[str, Any]:
     }
 
 
+def get_student_profile(student_id: str, lookback_days: int = 28) -> dict:
+    """
+    학생 스냅샷: 개념별 성취도, 오개념 패턴, 질문 스타일, 타임라인, 피어 비교 (간단 버전).
+    - 선생님/학부모/학생 공통 상단 요약에 사용.
+    """
+    now = _utc_now()
+    since = _iso(now - timedelta(days=lookback_days))
+
+    # 1) 채점/개념 통계
+    items = (
+        _execute_with_retry(
+            lambda: supabase.table("problem_items")
+            .select("key_concepts,is_correct,created_at,reason")
+            .eq("student_user_id", student_id)
+            .gte("created_at", since)
+            .limit(500)
+            .execute()
+        ).data
+        or []
+    )
+
+    concept_stats: Dict[str, Dict[str, int]] = {}
+    week_stats: Dict[str, Dict[str, int]] = {}
+    mistake_counter: Counter = Counter()
+
+    for it in items:
+        concepts = it.get("key_concepts") or []
+        is_corr = bool(it.get("is_correct"))
+        created = it.get("created_at")
+        try:
+            dt = datetime.fromisoformat(created.replace("Z", "+00:00")) if created else now
+        except Exception:
+            dt = now
+        year_week = f"{dt.isocalendar().year}-W{dt.isocalendar().week:02d}"
+
+        for c in concepts:
+            cs = concept_stats.setdefault(c, {"correct": 0, "total": 0})
+            cs["total"] += 1
+            if is_corr:
+                cs["correct"] += 1
+
+            ws = week_stats.setdefault(year_week, {"correct": 0, "total": 0})
+            ws["total"] += 1
+            if is_corr:
+                ws["correct"] += 1
+
+        reason = (it.get("reason") or "").strip()
+        if reason:
+            mistake_counter[reason] += 1
+
+    # 개념별 성취도 리스트
+    concepts_list = []
+    for name, st in concept_stats.items():
+        total = max(1, st["total"])
+        mastery = st["correct"] / total
+        concepts_list.append({"name": name, "mastery": mastery})
+    concepts_list.sort(key=lambda x: x["mastery"])
+
+    # 타임라인 (주간 평균)
+    timeline = []
+    for wk, st in sorted(week_stats.items()):
+        total = max(1, st["total"])
+        timeline.append({"week": wk, "score": st["correct"] / total})
+
+    # 오개념/실수 패턴 요약 (reason 코드를 한글로 매핑)
+    mistakes = []
+    for code, cnt in mistake_counter.most_common(5):
+        label = _REASON_KO.get(code, code)
+        mistakes.append({"code": code, "label": label, "count": cnt})
+
+    # 2) 질문 스타일 (채팅 로그)
+    chats = (
+        _execute_with_retry(
+            lambda: supabase.table("chat_messages")
+            .select("content,meta")
+            .eq("student_user_id", student_id)
+            .eq("role", "user")
+            .gte("created_at", since)
+            .limit(200)
+            .execute()
+        ).data
+        or []
+    )
+
+    concept_q = 0
+    calc_q = 0
+    careless_q = 0
+
+    for row in chats:
+        content = (row.get("content") or "").lower()
+        if any(k in content for k in ["개념", "정의", "왜 그런", "설명"]):
+            concept_q += 1
+        elif any(k in content for k in ["계산", "풀", "답이", "식이"]):
+            calc_q += 1
+        elif any(k in content for k in ["왜 틀렸", "틀린 이유", "실수"]):
+            careless_q += 1
+        else:
+            calc_q += 1
+
+    total_q = max(1, concept_q + calc_q + careless_q)
+    questions_style = {
+        "conceptual_ratio": concept_q / total_q,
+        "procedural_ratio": calc_q / total_q,
+        "careless_ratio": careless_q / total_q,
+    }
+
+    # 3) 피어 비교 (간단 버전: 이 학생의 평균 대비 상·하위 개념만 표시)
+    if concepts_list:
+        avg_mastery = sum(c["mastery"] for c in concepts_list) / len(concepts_list)
+    else:
+        avg_mastery = 0.0
+
+    strong = [c["name"] for c in concepts_list if c["mastery"] >= avg_mastery + 0.1][:3]
+    weak = [c["name"] for c in concepts_list if c["mastery"] <= avg_mastery - 0.1][:3]
+
+    return {
+        "summary": {
+            "overall_score": avg_mastery,
+            "trend": "flat",
+            "study_time_total_min": None,
+            "sessions": None,
+        },
+        "concepts": concepts_list,
+        "mistakes": mistakes,
+        "questions_style": questions_style,
+        "peer_compare": {
+            "same_level_students": None,
+            "strong_concepts": strong,
+            "weak_concepts": weak,
+        },
+        "timeline": timeline,
+    }
+
+
+def get_next_class_plan(student_id: str, lookback_days: int = 28) -> dict:
+    """
+    다음 수업 플랜: 최근 4주 데이터 기반으로 보강할 개념/유형을 Todo 리스트로 제안.
+    (초기 버전은 규칙 기반, 나중에 고도화 가능)
+    """
+    profile = get_student_profile(student_id, lookback_days=lookback_days)
+    concepts = profile.get("concepts") or []
+    mistakes = profile.get("mistakes") or []
+
+    weak_concepts = [c for c in concepts if c.get("mastery", 1.0) < 0.75]
+    weak_concepts.sort(key=lambda x: x.get("mastery", 1.0))
+
+    focus_concepts = []
+    for c in weak_concepts[:3]:
+        name = c["name"]
+        mastery = c.get("mastery", 0.0)
+        reason = f"최근 정답률 {int(mastery * 100)}% 이하"
+        suggestion = f"교재에서 '{name}' 단원 문제 2~3개를 함께 풀어 보세요. (10분)"
+        focus_concepts.append({"name": name, "reason": reason, "suggestion": suggestion})
+
+    practice_types = []
+    if mistakes:
+        top = mistakes[0]
+        practice_types.append(
+            {
+                "type": top.get("label") or top.get("code"),
+                "reason": f"최근 오답의 주요 원인: {top.get('label')}",
+                "suggestion": "해당 유형의 예시를 1~2개 골라, 왜 틀렸는지 말로 설명하게 해 보세요. (5분)",
+            }
+        )
+
+    return {
+        "focus_concepts": focus_concepts,
+        "practice_types": practice_types,
+        "meta": {"generated_at": _iso(_utc_now()), "lookback_days": lookback_days},
+    }
+
+
+def get_parent_story_summary(student_id: str, lookback_days: int = 28) -> dict:
+    """
+    학부모용 스토리 요약: 좋아진 점 / 약한 점 / 다음 계획 + 대화 가이드.
+    (초기 버전: LLM 없이 규칙 기반)
+    """
+    profile = get_student_profile(student_id, lookback_days=lookback_days)
+    plan = get_next_class_plan(student_id, lookback_days=lookback_days)
+
+    concepts = profile.get("concepts") or []
+    timeline = profile.get("timeline") or []
+
+    improved = "최근 4주 동안의 성취도 변화를 분석 중입니다."
+    still_weak = ""
+    next_plan = ""
+    parent_tips: List[str] = []
+
+    if timeline and len(timeline) >= 2:
+        first = timeline[0]["score"]
+        last = timeline[-1]["score"]
+        diff = last - first
+        if diff > 0.05:
+            improved = f"지난 4주 동안 전체 정답률이 약 {int(diff * 100)}%p 정도 올랐어요."
+        elif diff < -0.05:
+            improved = f"최근 4주 동안 정답률이 약 {int(abs(diff) * 100)}%p 정도 내려갔어요."
+        else:
+            improved = "최근 4주 동안 전체 정답률은 비슷한 수준을 유지하고 있어요."
+
+    weak = [c for c in concepts if c.get("mastery", 1.0) < 0.75]
+    weak_names = [c["name"] for c in weak[:3]]
+    if weak_names:
+        still_weak = f"{' · '.join(weak_names)} 개념은 아직 오답이 자주 나와요."
+
+    focus = plan.get("focus_concepts") or []
+    if focus:
+        names = [f["name"] for f in focus[:2]]
+        next_plan = f"다음 수업에서는 {' · '.join(names)} 중심으로 보강할 예정입니다."
+    else:
+        next_plan = "다음 수업에서는 최근에 헷갈렸던 개념들을 정리하는 데 집중할 예정입니다."
+
+    parent_tips = [
+        "이번 상담에서 선생님께, 집에서 아이를 어떻게 도와주면 좋을지 구체적인 예시를 물어보세요.",
+        "아이에게 최근에 특히 헷갈렸던 문제를 하나 골라 왜 헷갈렸는지 이야기해 보세요.",
+    ]
+
+    return {
+        "improved": improved,
+        "still_weak": still_weak,
+        "next_plan": next_plan,
+        "parent_tips": parent_tips,
+    }
+
+
 def get_streak_days(student_id: str) -> int:
     """오늘 포함 연속 학습 일수 (채점 또는 질문이 있는 날만 카운트)."""
     sb = supabase_service if supabase_service is not None else supabase

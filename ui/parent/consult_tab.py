@@ -4,7 +4,7 @@ import streamlit as st
 
 from ui.ui_errors import show_error
 from ui.ui_common import format_ts_kst
-from services.analytics_service import get_student_consultation_report
+from services.analytics_service import get_student_consultation_report, get_parent_story_summary
 from ui.parent.dev import render_dev_json
 from ui.parent.data_loaders import fetch_teacher_consult_logs_for_student
 
@@ -158,6 +158,25 @@ def _render_teacher_consult_summary_and_history(supabase, student_id: str):
 def render_consult_tab(supabase, student_id: str):
     st.subheader("🧾 상담 리포트 (학부모용)")
     st.caption("학원 수업·성취도 신뢰를 위한 상담 자료예요.")
+
+    # 상단: 최근 4주 스토리 요약 (좋아진 점 / 약한 점 / 다음 계획 + 대화 가이드)
+    try:
+        story = get_parent_story_summary(student_id)
+    except Exception:
+        story = {}
+    with st.container(border=True):
+        st.markdown("#### 이번 달 한 줄 요약")
+        st.markdown(f"- **좋아진 점**: {story.get('improved', '')}")
+        st.markdown(f"- **아직 약한 점**: {story.get('still_weak', '')}")
+        st.markdown(f"- **다음 계획**: {story.get('next_plan', '')}")
+
+        tips = story.get("parent_tips") or []
+        if tips:
+            st.markdown("#### 집에서 이렇게 도와주세요")
+            for t in tips:
+                st.markdown(f"- {t}")
+
+    st.markdown("---")
 
     _render_teacher_consult_summary_and_history(supabase, student_id)
     st.divider()

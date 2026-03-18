@@ -33,16 +33,7 @@ def _resolve_student_id_by_handle(handle: str) -> str:
     return rows[0]["id"]
 
 
-def main() -> None:
-    base = BASE_DIR  # 프로젝트 루트
-    json_path = base / "fake_usage_joshua.json"
-
-    with open(json_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    handle = (data.get("student_id") or "joshua").strip()
-    student_id = _resolve_student_id_by_handle(handle)
-
+def _seed_from_data(student_id: str, data: dict) -> None:
     sessions = data.get("sessions") or []
     questions = data.get("questions") or []
 
@@ -113,7 +104,26 @@ def main() -> None:
     if chat_rows:
         supabase.table("chat_messages").insert(chat_rows).execute()
 
-    print(f"✅ Fake data for handle='{handle}' (id={student_id}) inserted.")
+
+def main() -> None:
+    base = BASE_DIR  # 프로젝트 루트
+
+    # 처리할 JSON 파일 목록: 기본 + 추가 조각들
+    paths = [base / "fake_usage_joshua.json"]
+    paths.extend(sorted(base.glob("fake_usage_joshua_*.json")))
+
+    # handle='joshua' 의 실제 id 조회 (한 번만)
+    student_id = _resolve_student_id_by_handle("joshua")
+
+    for path in paths:
+        if not path.exists():
+            continue
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        _seed_from_data(student_id, data)
+        print(f"✅ seeded from {path.name}")
+
+    print(f"✅ All fake data for handle='joshua' (id={student_id}) inserted.")
 
 
 if __name__ == "__main__":

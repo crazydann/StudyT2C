@@ -1,0 +1,75 @@
+{
+  "student_id": "joshua",
+  "sessions": [
+    {
+      "days_ago": 27,
+      "subject": "수학",
+      "items": [
+        { "key_concepts": ["삼각함수의 그래프"], "is_correct": true },
+        { "key_concepts": ["삼각함수의 그래프"], "is_correct": false },
+        { "key_concepts": ["삼각함수의 덧셈정리"], "is_correct": false },
+        { "key_concepts": ["삼각함수의 활용"], "is_correct": true },
+        { "key_concepts": ["삼각함수의 활용"], "is_correct": true }
+      ]
+    },
+    {
+      "days_ago": 29,
+      "subject": "수학",
+      "items": [
+        { "key_concepts": ["벡터의 연산"], "is_correct": true },
+        { "key_concepts": ["벡터의 연산"], "is_correct": true },
+        { "key_concepts": ["내적의 의미"], "is_correct": false },
+        { "key_concepts": ["직선의 방정식"], "is_correct": true },
+        { "key_concepts": ["평면의 방정식"], "is_correct": false }
+      ]
+    },
+    {
+      "days_ago": 37,
+      "subject": "수학",
+      "items": [
+        { "key_concepts": ["집합과 명제"], "is_correct": true },
+        { "key_concepts": ["명제의 역과 대우"], "is_correct": false },
+        { "key_concepts": ["함수의 개념"], "is_correct": true },
+        { "key_concepts": ["함수의 그래프 해석"], "is_correct": true },
+        { "key_concepts": ["일차함수"], "is_correct": true }
+      ]
+    },
+    {
+      "days_ago": 45,
+      "subject": "수학",
+      "items": [
+        { "key_concepts": ["이차함수의 그래프"], "is_correct": true },
+        { "key_concepts": ["이차함수의 최대최소"], "is_correct": false },
+        { "key_concepts": ["이차방정식의 근"], "is_correct": true },
+        { "key_concepts": ["이차방정식과 함수"], "is_correct": true },
+        { "key_concepts": ["부등식"], "is_correct": false }
+      ]
+    },
+    {
+      "days_ago": 55,
+      "subject": "수학",
+      "items": [
+        { "key_concepts": ["수열의 극한"], "is_correct": true },
+        { "key_concepts": ["함수의 극한"], "is_correct": true },
+        { "key_concepts": ["연속"], "is_correct": false },
+        { "key_concepts": ["연속"], "is_correct": true },
+        { "key_concepts": ["미분계수"], "is_correct": true }
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "days_ago": 33,
+      "content": "삼각함수의 덧셈정리를 활용하는 문제에서 식을 어떻게 세워야 할지 자꾸 막혀요.",
+      "subject": "수학",
+      "concept": "삼각함수의 덧셈정리"
+    },
+    {
+      "days_ago": 42,
+      "content": "내적이 0이라는 조건을 기하적으로 해석할 때, 어떤 그림을 떠올리면 좋을까요?",
+      "subject": "수학",
+      "concept": "내적과 직교"
+    }
+  ]
+}
+

@@ -12,8 +12,25 @@ if str(BASE_DIR) not in sys.path:
 from services.supabase_client import supabase  # noqa: E402
 
 
-STUDENT_ID = "joshua"  # Supabase users.id 와 일치해야 함
 NOW = datetime.now(timezone.utc)
+
+
+def _resolve_student_id_by_handle(handle: str) -> str:
+    """
+    users.handle = 'joshua' 인 행을 찾아 id(UUID)를 가져온다.
+    """
+    rows = (
+        supabase.table("users")
+        .select("id,handle")
+        .eq("handle", handle)
+        .limit(1)
+        .execute()
+        .data
+        or []
+    )
+    if not rows:
+        raise RuntimeError(f"users 테이블에서 handle='{handle}' 인 학생을 찾지 못했습니다.")
+    return rows[0]["id"]
 
 
 def main() -> None:
@@ -22,6 +39,9 @@ def main() -> None:
 
     with open(json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
+
+    handle = (data.get("student_id") or "joshua").strip()
+    student_id = _resolve_student_id_by_handle(handle)
 
     sessions = data.get("sessions") or []
     questions = data.get("questions") or []
@@ -37,7 +57,7 @@ def main() -> None:
             supabase.table("problem_submissions")
             .insert(
                 {
-                    "student_user_id": STUDENT_ID,
+                    "student_user_id": student_id,
                     "created_at": created_at,
                 }
             )
@@ -57,7 +77,7 @@ def main() -> None:
         for it in items:
             rows.append(
                 {
-                    "student_user_id": STUDENT_ID,
+                    "student_user_id": student_id,
                     "submission_id": submission_id,
                     "is_correct": bool(it.get("is_correct")),
                     "key_concepts": it.get("key_concepts") or [],
@@ -83,7 +103,7 @@ def main() -> None:
 
         chat_rows.append(
             {
-                "student_user_id": STUDENT_ID,
+                "student_user_id": student_id,
                 "role": "user",
                 "content": content,
                 "meta": meta,
@@ -94,7 +114,7 @@ def main() -> None:
     if chat_rows:
         supabase.table("chat_messages").insert(chat_rows).execute()
 
-    print("✅ Fake data for joshua inserted.")
+    print(f"✅ Fake data for handle='{handle}' (id={student_id}) inserted.")
 
 
 if __name__ == "__main__":

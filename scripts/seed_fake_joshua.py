@@ -81,7 +81,6 @@ def main() -> None:
                     "submission_id": submission_id,
                     "is_correct": bool(it.get("is_correct")),
                     "key_concepts": it.get("key_concepts") or [],
-                    "reason": (it.get("reason") or "").strip() or None,
                     "created_at": created_at,
                 }
             )

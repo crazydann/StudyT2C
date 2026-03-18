@@ -39,7 +39,6 @@ def main() -> None:
                 {
                     "student_user_id": STUDENT_ID,
                     "created_at": created_at,
-                    "subject": subject,
                 }
             )
             .execute()

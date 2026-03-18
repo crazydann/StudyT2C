@@ -1,8 +1,15 @@
 import json
+import sys
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 
-from services.supabase_client import supabase
+
+# 프로젝트 루트를 sys.path 에 추가해서 'services' 모듈을 인식시키기
+BASE_DIR = Path(__file__).resolve().parent.parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
+from services.supabase_client import supabase  # noqa: E402
 
 
 STUDENT_ID = "joshua"  # Supabase users.id 와 일치해야 함
@@ -10,7 +17,7 @@ NOW = datetime.now(timezone.utc)
 
 
 def main() -> None:
-    base = Path(__file__).resolve().parent.parent  # 프로젝트 루트
+    base = BASE_DIR  # 프로젝트 루트
     json_path = base / "fake_usage_joshua.json"
 
     with open(json_path, "r", encoding="utf-8") as f:

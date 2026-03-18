@@ -1,0 +1,135 @@
+{
+  "student_id": "joshua",
+  "level": "고3",
+  "profile": {
+    "school": "분당 내 고등학교",
+    "math_grade": 2,
+    "korean_grade": 1,
+    "english_grade": 1,
+    "science_grade": 2
+  },
+  "sessions": [
+    {
+      "days_ago": 3,
+      "subject": "수학",
+      "items": [
+        { "key_concepts": ["미분의 기본법칙"], "is_correct": true, "reason": "concept" },
+        { "key_concepts": ["연속과 미분가능성"], "is_correct": true, "reason": "concept" },
+        { "key_concepts": ["정적분의 의미"], "is_correct": false, "reason": "reading" },
+        { "key_concepts": ["정적분의 계산"], "is_correct": true, "reason": "calculation" },
+        { "key_concepts": ["평균값 정리"], "is_correct": false, "reason": "concept" }
+      ]
+    },
+    {
+      "days_ago": 7,
+      "subject": "수학",
+      "items": [
+        { "key_concepts": ["거듭제곱함수의 미분"], "is_correct": true, "reason": "concept" },
+        { "key_concepts": ["지수함수의 미분"], "is_correct": true, "reason": "concept" },
+        { "key_concepts": ["로그함수의 미분"], "is_correct": false, "reason": "calculation" },
+        { "key_concepts": ["합성함수의 미분"], "is_correct": true, "reason": "concept" },
+        { "key_concepts": ["도함수와 그래프"], "is_correct": false, "reason": "reading" }
+      ]
+    },
+    {
+      "days_ago": 12,
+      "subject": "수학",
+      "items": [
+        { "key_concepts": ["정적분과 넓이"], "is_correct": true, "reason": "concept" },
+        { "key_concepts": ["정적분과 넓이"], "is_correct": false, "reason": "calculation" },
+        { "key_concepts": ["부정적분"], "is_correct": true, "reason": "concept" },
+        { "key_concepts": ["부분적분법"], "is_correct": false, "reason": "concept" }
+      ]
+    },
+    {
+      "days_ago": 18,
+      "subject": "수학",
+      "items": [
+        { "key_concepts": ["순열과 조합"], "is_correct": true, "reason": "concept" },
+        { "key_concepts": ["이항정리"], "is_correct": true, "reason": "concept" },
+        { "key_concepts": ["확률의 정의"], "is_correct": true, "reason": "concept" },
+        { "key_concepts": ["조건부확률"], "is_correct": false, "reason": "concept" },
+        { "key_concepts": ["확률변수와 기대값"], "is_correct": false, "reason": "calculation" }
+      ]
+    },
+    {
+      "days_ago": 24,
+      "subject": "수학",
+      "items": [
+        { "key_concepts": ["수열의 극한"], "is_correct": true, "reason": "concept" },
+        { "key_concepts": ["급수의 수렴"], "is_correct": false, "reason": "concept" },
+        { "key_concepts": ["등차수열"], "is_correct": true, "reason": "concept" },
+        { "key_concepts": ["등비수열"], "is_correct": true, "reason": "concept" }
+      ]
+    },
+    {
+      "days_ago": 31,
+      "subject": "수학",
+      "items": [
+        { "key_concepts": ["삼각함수의 그래프"], "is_correct": true, "reason": "concept" },
+        { "key_concepts": ["삼각함수의 그래프"], "is_correct": false, "reason": "reading" },
+        { "key_concepts": ["삼각함수의 덧셈정리"], "is_correct": false, "reason": "concept" },
+        { "key_concepts": ["삼각함수의 활용"], "is_correct": true, "reason": "concept" }
+      ]
+    },
+    {
+      "days_ago": 40,
+      "subject": "수학",
+      "items": [
+        { "key_concepts": ["벡터의 연산"], "is_correct": true, "reason": "concept" },
+        { "key_concepts": ["내적의 의미"], "is_correct": false, "reason": "concept" },
+        { "key_concepts": ["직선의 방정식"], "is_correct": true, "reason": "concept" },
+        { "key_concepts": ["평면의 방정식"], "is_correct": false, "reason": "reading" }
+      ]
+    },
+    {
+      "days_ago": 52,
+      "subject": "수학",
+      "items": [
+        { "key_concepts": ["집합과 명제"], "is_correct": true, "reason": "concept" },
+        { "key_concepts": ["명제의 역과 대우"], "is_correct": false, "reason": "reading" },
+        { "key_concepts": ["함수의 개념"], "is_correct": true, "reason": "concept" },
+        { "key_concepts": ["함수의 그래프 해석"], "is_correct": true, "reason": "concept" }
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "days_ago": 2,
+      "content": "함수 f(x)가 어떤 점에서 미분가능하다는 게 정확히 무슨 뜻인가요? 그래프 관점에서 설명해 주세요.",
+      "subject": "수학",
+      "concept": "미분의 정의"
+    },
+    {
+      "days_ago": 6,
+      "content": "정적분의 값이 음수가 되는 경우를 어떻게 해석해야 할지 헷갈립니다.",
+      "subject": "수학",
+      "concept": "정적분의 의미"
+    },
+    {
+      "days_ago": 11,
+      "content": "조건부확률 문제에서 '주어진 사건'을 어떻게 읽어야 할지 자꾸 헷갈려요.",
+      "subject": "수학",
+      "concept": "조건부확률"
+    },
+    {
+      "days_ago": 17,
+      "content": "삼각함수의 덧셈정리를 외우는 것보다, 식이 어떻게 나오는지 이해하는 게 좋을까요?",
+      "subject": "수학",
+      "concept": "삼각함수의 덧셈정리"
+    },
+    {
+      "days_ago": 28,
+      "content": "내적이 '투영'과 관련 있다는 설명을 들었는데, 기하적으로 한 번 더 정리해 주세요.",
+      "subject": "수학",
+      "concept": "내적의 기하적 의미"
+    },
+    {
+      "days_ago": 35,
+      "content": "벡터의 크기와 방향만으로도 충분한데, 왜 평면의 방정식을 따로 공부해야 하는지 궁금합니다.",
+      "subject": "수학",
+      "concept": "평면의 방정식"
+    }
+  ]
+}
+

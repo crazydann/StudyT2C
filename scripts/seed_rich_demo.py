@@ -412,19 +412,22 @@ def seed_concept_reviews(student_id: str, handle: str, sessions: List[datetime])
                 "created_at": ts,
             }).execute().data or []
 
-            # concept_review_attempts (실제 스키마: quiz_question, correct_index, user_choice_index, is_correct)
-            is_correct = random.random() > 0.4
-            user_choice = 0 if is_correct else random.randint(1, 3)
-            sb.table("concept_review_attempts").insert({
-                "student_user_id": student_id,
-                "source_question": q_text,
-                "source_answer": a_text,
-                "quiz_question": q_text,
-                "correct_index": correct_index,
-                "user_choice_index": user_choice,
-                "is_correct": is_correct,
-                "created_at": ts2,
-            }).execute()
+            # concept_review_attempts — 테이블 없으면 건너뜀
+            try:
+                is_correct = random.random() > 0.4
+                user_choice = 0 if is_correct else random.randint(1, 3)
+                sb.table("concept_review_attempts").insert({
+                    "student_user_id": student_id,
+                    "source_question": q_text,
+                    "source_answer": a_text,
+                    "quiz_question": q_text,
+                    "correct_index": correct_index,
+                    "user_choice_index": user_choice,
+                    "is_correct": is_correct,
+                    "created_at": ts2,
+                }).execute()
+            except Exception:
+                pass
 
 
 def seed_focus_events(student_id: str, handle: str, sessions: List[datetime]) -> None:

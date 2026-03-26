@@ -227,12 +227,16 @@ def seed_grading(student_id: str, handle: str, sessions: List[datetime]) -> None
             ts_dt = sess_dt + timedelta(hours=offset_h)
             ts = ts_dt.isoformat()
 
-            # 1) problem_submissions (필수: student_user_id, file_hash)
-            sub_res = sb.table("problem_submissions").insert({
-                "student_user_id": student_id,
-                "file_hash": f"demo_{handle}_{subj_code}_{idx}_{random.randint(10000, 99999)}",
-                "created_at": ts,
-            }).execute().data or []
+            # 1) problem_submissions — upsert으로 중복 방지
+            file_hash = f"demo_{handle}_{subj_code}_w{idx:02d}"
+            sub_res = sb.table("problem_submissions").upsert(
+                {
+                    "student_user_id": student_id,
+                    "file_hash": file_hash,
+                    "created_at": ts,
+                },
+                on_conflict="student_user_id,file_hash",
+            ).execute().data or []
             if not sub_res:
                 continue
             submission_id = sub_res[0]["id"]

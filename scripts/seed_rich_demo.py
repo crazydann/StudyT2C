@@ -243,7 +243,9 @@ def seed_grading(student_id: str, handle: str, sessions: List[datetime]) -> None
 
             # 2) problem_items
             items_data = _make_items(student_id, submission_id, ts, subj_code, subj_info)
-            inserted_items = sb.table("problem_items").insert(items_data).execute().data or []
+            inserted_items = sb.table("problem_items").upsert(
+                items_data, on_conflict="submission_id,item_no"
+            ).execute().data or []
 
             # 3) problem_item_feedback (오답에 대해서만)
             feedback_data = []
@@ -258,7 +260,9 @@ def seed_grading(student_id: str, handle: str, sessions: List[datetime]) -> None
                         "created_at": ts,
                     })
             if feedback_data:
-                sb.table("problem_item_feedback").insert(feedback_data).execute()
+                sb.table("problem_item_feedback").upsert(
+                    feedback_data, on_conflict="student_user_id,problem_item_id"
+                ).execute()
 
 
 def seed_chat(student_id: str, handle: str, sessions: List[datetime]) -> None:
@@ -456,6 +460,42 @@ def seed_focus_events(student_id: str, handle: str, sessions: List[datetime]) ->
 
 # ── 메인 ───────────────────────────────────────────────────────────────────
 
+def _delete_existing_demo(student_id: str, handle: str) -> None:
+    """기존 demo_ 데이터 삭제 (재실행 시 중복 방지)."""
+    print(f"  [정리] 기존 {handle} 데모 데이터 삭제 중...")
+    # problem_items / problem_item_feedback 는 submission FK로 연결
+    try:
+        subs = sb.table("problem_submissions").select("id").eq("student_user_id", student_id)\
+            .ilike("file_hash", "demo_%").limit(1000).execute().data or []
+        sub_ids = [s["id"] for s in subs if s.get("id")]
+        if sub_ids:
+            sb.table("problem_item_feedback").delete().in_("problem_item_id",
+                [r["id"] for r in
+                 sb.table("problem_items").select("id").in_("submission_id", sub_ids)
+                 .limit(5000).execute().data or []]
+            ).execute()
+            sb.table("problem_items").delete().in_("submission_id", sub_ids).execute()
+            sb.table("problem_submissions").delete().in_("id", sub_ids).execute()
+    except Exception as e:
+        print(f"    [WARN] {e}")
+    for tbl in ("chat_messages", "homework_non_submit_reasons", "focus_events", "concept_review_attempts", "concept_review_quizzes"):
+        try:
+            sb.table(tbl).delete().eq("student_user_id", student_id).execute()
+        except Exception:
+            pass
+    # homework_submissions → homework_assignments
+    try:
+        hws = sb.table("homework_assignments").select("id").eq("student_user_id", student_id)\
+            .limit(1000).execute().data or []
+        hw_ids = [h["id"] for h in hws if h.get("id")]
+        if hw_ids:
+            sb.table("homework_submissions").delete().in_("assignment_id", hw_ids).execute()
+        sb.table("homework_assignments").delete().eq("student_user_id", student_id).execute()
+        sb.table("homework_non_submit_reasons").delete().eq("student_user_id", student_id).execute()
+    except Exception:
+        pass
+
+
 def main() -> None:
     print("=" * 60)
     print("StudyT2C 데모 데이터 시드 스크립트")
@@ -481,6 +521,7 @@ def main() -> None:
             continue
 
         print(f"  student_id: {student_id}")
+        _delete_existing_demo(student_id, handle)
 
         seed_grading(student_id, handle, sessions)
         seed_chat(student_id, handle, sessions)

@@ -6,3 +6,8 @@ venv/
 __pycache__/
 .env
 환경 정보들
+
+# Next.js
+web/.env.local
+web/.next/
+web/node_modules/

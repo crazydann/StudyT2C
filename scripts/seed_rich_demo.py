@@ -171,7 +171,7 @@ def _session_times(weeks: int = SEED_WEEKS) -> List[datetime]:
 
 
 def _make_items(student_id: str, submission_id: str, ts: str,
-                subject: str, profile: dict) -> List[Dict[str, Any]]:
+                _subject: str, profile: dict) -> List[Dict[str, Any]]:
     """채점 문항 5~8개 생성."""
     weak = profile["weak_concepts"]
     ok = profile["ok_concepts"]
@@ -193,7 +193,6 @@ def _make_items(student_id: str, submission_id: str, ts: str,
             "submission_id": submission_id,
             "item_no": i,
             "is_correct": is_correct,
-            "subject_code": subject,
             "key_concepts": kc,
             "explanation_summary": f"{'정답' if is_correct else '오답'}: {', '.join(kc)} 관련 문제입니다.",
             "created_at": ts,

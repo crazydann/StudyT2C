@@ -228,14 +228,10 @@ def seed_grading(student_id: str, handle: str, sessions: List[datetime]) -> None
             ts_dt = sess_dt + timedelta(hours=offset_h)
             ts = ts_dt.isoformat()
 
-            # 1) problem_submissions
+            # 1) problem_submissions (필수: student_user_id, file_hash)
             sub_res = sb.table("problem_submissions").insert({
                 "student_user_id": student_id,
                 "file_hash": f"demo_{handle}_{subj_code}_{idx}_{random.randint(10000, 99999)}",
-                "file_name": f"demo_{subj_info['label']}_{idx+1}.png",
-                "storage_path": f"problem_images/demo/{handle}/{subj_code}_{idx}.png",
-                "storage_url": f"https://demo.storage/demo/{handle}/{subj_code}_{idx}.png",
-                "status": "graded",
                 "created_at": ts,
             }).execute().data or []
             if not sub_res:

@@ -209,7 +209,7 @@ def _make_feedback(student_id: str, items: List[Dict[str, Any]]) -> List[Dict[st
             feedbacks.append({
                 "student_user_id": student_id,
                 "problem_item_id": it.get("id"),
-                "understanding": random.choice(["confused", "partial", "understood"]),
+                "understanding": random.choice(["confused", "understood"]),
                 "reason_category": random.choice(reasons),
                 "created_at": it["created_at"],
             })
@@ -253,7 +253,7 @@ def seed_grading(student_id: str, handle: str, sessions: List[datetime]) -> None
                     feedback_data.append({
                         "student_user_id": student_id,
                         "problem_item_id": it["id"],
-                        "understanding": random.choice(["confused", "partial", "understood"]),
+                        "understanding": random.choice(["confused", "understood"]),
                         "reason_category": random.choice(reasons),
                         "created_at": ts,
                     })

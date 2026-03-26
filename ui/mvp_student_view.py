@@ -34,7 +34,7 @@ def _apply_student_layout_css():
     st.markdown(
         """
         <style>
-        /* 헤더–본문 공백 제거: 모든 상단 여백 제거 (크롬·데스크톱 동일 적용) */
+        /* 헤더–본문 공백 제거 */
         section[data-testid="stAppViewContainer"],
         section[data-testid="stAppViewContainer"] > div,
         div[data-testid="stAppViewContainer"] div.block-container {
@@ -42,8 +42,8 @@ def _apply_student_layout_css():
             max-width: 100%;
         }
         div[data-testid="stAppViewContainer"] div.block-container {
-            padding-left: 1.5rem;
-            padding-right: 1.5rem;
+            padding-left: 1.2rem;
+            padding-right: 1.2rem;
             padding-bottom: 1rem;
             min-height: 0;
         }
@@ -51,12 +51,12 @@ def _apply_student_layout_css():
             margin-bottom: 0 !important;
             margin-top: 0 !important;
         }
-        /* 헤더 바로 아래 본문 끌어올리기 (크롬에서 남는 여백 제거) */
         div[data-testid="stAppViewContainer"] div.block-container > div:nth-child(n+2) {
             margin-top: 0 !important;
         }
         div[data-testid="stAppViewContainer"] div.block-container hr {
             margin: 0.1rem 0 !important;
+            border-color: #f1f5f9;
         }
         div[data-testid="stAppViewContainer"] iframe[title="streamlitComponent"] {
             height: 0 !important;
@@ -66,17 +66,153 @@ def _apply_student_layout_css():
         section[data-testid="stSidebar"] { display: none; }
         header[data-testid="stHeader"] { background: transparent; }
 
-        /* AI 튜터 대화창: 브라우저 크기에 따라 자동 변경 (고정 70vh 제거로 크롬 공백 원인 제거) */
-        div[data-testid="stHorizontalBlock"] > div:nth-child(2) {
-            min-height: 0;
+        /* ── 학생 대시보드 헤더 바 ── */
+        .mvp-header-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            background: #ffffff;
+            border-bottom: 1px solid #e8edf5;
+            border-radius: 0 0 12px 12px;
+            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
+            margin-bottom: 10px;
         }
+        .mvp-header-logo {
+            font-size: 1.05rem;
+            font-weight: 800;
+            color: #2563eb;
+            letter-spacing: -0.04em;
+        }
+        .mvp-header-sub {
+            font-size: 0.72rem;
+            color: #94a3b8;
+            margin-left: 6px;
+        }
+        .mvp-status-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 10px;
+            border-radius: 99px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+        }
+        .mvp-status-chip.studying {
+            background: #dcfce7;
+            color: #16a34a;
+        }
+        .mvp-status-chip.break {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+
+        /* ── 좌/우 패널 섹션 헤더 ── */
+        .mvp-section-title {
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: #1e293b;
+            letter-spacing: -0.01em;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            margin: 8px 0 4px;
+        }
+        .mvp-section-divider {
+            border: none;
+            border-top: 1px solid #f1f5f9;
+            margin: 8px 0;
+        }
+
+        /* ── 스냅샷 카드 ── */
+        .mvp-left-col div[data-testid="stVerticalBlockBorderWrapper"] {
+            border-radius: 12px !important;
+            border: 1px solid #e8edf5 !important;
+            background: linear-gradient(135deg, #f8faff, #ffffff) !important;
+            box-shadow: 0 1px 6px rgba(37,99,235,0.06) !important;
+            padding: 0.6rem 0 !important;
+        }
+        .mvp-right-col div[data-testid="stVerticalBlockBorderWrapper"] {
+            border-radius: 12px !important;
+            border: 1px solid #e8edf5 !important;
+            box-shadow: 0 1px 6px rgba(15,23,42,0.05) !important;
+            padding: 0.6rem 0 !important;
+        }
+
+        /* ── 추천 개념 배너 ── */
+        .mvp-concept-banner div[data-testid="stVerticalBlockBorderWrapper"] {
+            border-radius: 10px !important;
+            border: 1px solid #dbeafe !important;
+            background: linear-gradient(90deg, #eff6ff, #f8faff) !important;
+            box-shadow: none !important;
+            padding: 0.3rem 0 !important;
+        }
+        .mvp-concept-banner .stButton > button {
+            font-size: 0.72rem !important;
+            padding: 0.2rem 0.5rem !important;
+            border-radius: 8px !important;
+            background: #fff !important;
+            border: 1px solid #bfdbfe !important;
+            color: #2563eb !important;
+            font-weight: 600 !important;
+        }
+        .mvp-concept-banner .stButton > button:hover {
+            background: #eff6ff !important;
+            box-shadow: none !important;
+            transform: none !important;
+        }
+
+        /* ── 로그아웃 버튼 ── */
+        .mvp-logout-wrap .stButton > button {
+            font-size: 0.68rem !important;
+            white-space: nowrap !important;
+            padding: 0.22rem 0.6rem !important;
+            min-height: auto !important;
+            min-width: 4.2em !important;
+            box-sizing: content-box !important;
+            border-radius: 8px !important;
+            color: #64748b !important;
+            border-color: #e2e8f0 !important;
+        }
+        .mvp-logout-wrap .stButton > button:hover {
+            color: #ef4444 !important;
+            border-color: #fca5a5 !important;
+            background: #fff5f5 !important;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        /* ── 좌·우 텍스트/버튼 축소 ── */
+        .mvp-left-col .stMarkdown p, .mvp-left-col .stMarkdown strong { font-size: 0.8rem !important; }
+        .mvp-left-col .stCaption { font-size: 0.72rem !important; }
+        .mvp-left-col .stButton > button { font-size: 0.76rem !important; padding: 0.25rem 0.45rem !important; border-radius: 8px !important; }
+        .mvp-right-col .stMarkdown p, .mvp-right-col .stMarkdown strong { font-size: 0.8rem !important; }
+        .mvp-right-col .stCaption { font-size: 0.72rem !important; }
+        .mvp-right-col .stButton > button { font-size: 0.76rem !important; border-radius: 8px !important; }
+
+        /* ── 지난 문제 버튼: 왼쪽 액센트 라인 ── */
+        .mvp-left-col .stButton > button[kind="secondary"] {
+            text-align: left !important;
+            border-left: 3px solid #bfdbfe !important;
+            background: #f8faff !important;
+            color: #334155 !important;
+        }
+        .mvp-left-col .stButton > button[kind="secondary"]:hover {
+            border-left-color: #2563eb !important;
+            background: #eff6ff !important;
+            color: #1d4ed8 !important;
+        }
+
+        /* ── AI 튜터 대화창 ── */
+        div[data-testid="stHorizontalBlock"] > div:nth-child(2) { min-height: 0; }
         div[data-testid="stHorizontalBlock"] > div:nth-child(2) div[style*="overflow"] {
             height: min(55vh, 520px) !important;
             min-height: 280px !important;
             max-height: 75vh;
         }
 
-        /* 태블릿: 비율 유지 */
+        /* 태블릿 */
         @media (max-width: 1024px) {
             div[data-testid="stHorizontalBlock"] > div:nth-child(2) div[style*="overflow"] {
                 height: min(52vh, 480px) !important;
@@ -84,44 +220,16 @@ def _apply_student_layout_css():
             }
         }
 
-        /* 추천 개념 버튼 글자 70% */
-        .mvp-concept-banner .stButton > button { font-size: 70% !important; }
-
-        /* 로그인 학생: 로그아웃 버튼 한 줄로 (최소 너비 보장 + nowrap) */
-        .mvp-logout-wrap .stButton > button {
-            font-size: 0.65rem !important;
-            white-space: nowrap !important;
-            padding: 0.2rem 0.5rem !important;
-            min-height: auto !important;
-            min-width: 4.2em !important;
-            box-sizing: content-box !important;
-        }
-        /* 좌·우 프레임: 질의 개념 복습, 지난 문제들, 문제 채점기 등 글자 축소 */
-        .mvp-left-col .stMarkdown p, .mvp-left-col .stMarkdown strong { font-size: 0.8rem !important; }
-        .mvp-left-col .stCaption { font-size: 0.7rem !important; }
-        .mvp-left-col .stButton > button { font-size: 0.75rem !important; padding: 0.25rem 0.4rem !important; }
-        .mvp-right-col .stMarkdown p, .mvp-right-col .stMarkdown strong { font-size: 0.8rem !important; }
-        .mvp-right-col .stCaption { font-size: 0.7rem !important; }
-        .mvp-right-col .stButton > button { font-size: 0.75rem !important; }
-
-        /* 휴대폰: 3열 세로 쌓기, AI 튜터 맨 위 */
+        /* 휴대폰 */
         @media (max-width: 768px) {
-            div[data-testid="stHorizontalBlock"] {
-                flex-direction: column !important;
-            }
-            div[data-testid="stHorizontalBlock"] > div {
-                max-width: 100% !important;
-                flex: 0 0 auto !important;
-            }
-            div[data-testid="stHorizontalBlock"] > div:nth-child(2) {
-                order: -1;
-            }
+            div[data-testid="stHorizontalBlock"] { flex-direction: column !important; }
+            div[data-testid="stHorizontalBlock"] > div { max-width: 100% !important; flex: 0 0 auto !important; }
+            div[data-testid="stHorizontalBlock"] > div:nth-child(2) { order: -1; }
             div[data-testid="stHorizontalBlock"] > div:nth-child(2) div[style*="overflow"] {
                 height: min(50vh, 420px) !important;
                 min-height: 240px !important;
             }
         }
-
         @media (max-width: 480px) {
             div[data-testid="stHorizontalBlock"] > div:nth-child(2) div[style*="overflow"] {
                 height: min(48vh, 380px) !important;
@@ -163,17 +271,19 @@ def render_mvp_student_view(supabase, user: dict):
 
     with col_left:
         st.markdown('<div class="mvp-left-col">', unsafe_allow_html=True)
-        # 왼쪽 프레임 상단: 이름 옆에 작은 로그아웃 (가로 표기, 글자 작게)
-        status_label = "현재 집중 학습 중" if studying else "쉬는 시간"
-        r1, r2 = st.columns([1.5, 1.5])  # 로그아웃에 절반 비중으로 한 줄 확보
+        # 왼쪽 상단: 이름 + 상태 칩 + 로그아웃
+        status_label = "집중 학습 중" if studying else "쉬는 시간"
+        status_class = "studying" if studying else "break"
+        status_dot = "🟢" if studying else "⚪"
+        r1, r2 = st.columns([1.6, 1.4])
         with r1:
             st.markdown(
-                f'<div style="font-size:1.05rem; font-weight:600;">👤 {student_handle}</div>'
-                f'<div style="font-size:0.8rem; color:#64748b;">{status_label}</div>',
+                f'<div style="font-size:0.95rem;font-weight:700;color:#1e293b;letter-spacing:-0.01em;">{student_handle}</div>'
+                f'<span class="mvp-status-chip {status_class}">{status_dot} {status_label}</span>',
                 unsafe_allow_html=True,
             )
         with r2:
-            st.markdown('<div class="mvp-logout-wrap">', unsafe_allow_html=True)
+            st.markdown('<div class="mvp-logout-wrap" style="padding-top:4px;">', unsafe_allow_html=True)
             if st.button("로그아웃", key="mvp_logout", type="secondary", use_container_width=True):
                 st.session_state.pop("mvp_user", None)
                 st.session_state.pop("current_user", None)
@@ -182,7 +292,7 @@ def render_mvp_student_view(supabase, user: dict):
         from ui.service_intro_dialog import render_service_intro_button_inline
         render_service_intro_button_inline()
 
-        # 학생 본인 스냅샷 (간단 버전) — 데이터가 없어도 기본 카드는 항상 보이게
+        # 학생 본인 스냅샷 카드
         try:
             profile = get_student_profile(str(student_id))
         except Exception:
@@ -192,18 +302,32 @@ def render_mvp_student_view(supabase, user: dict):
         with st.container(border=True):
             s_txt = ", ".join(strong[:2]) if strong else "아직 분석 중이에요"
             w_txt = ", ".join(weak[:2]) if weak else "차츰 데이터가 쌓이면 보여드릴게요"
-            st.markdown("#### 내 학습 스냅샷 (최근 4주 기준)")
-            st.markdown(f"**📌 잘하는 개념**: {s_txt}")
-            st.markdown(f"**🧩 더 연습하면 좋은 개념**: {w_txt}")
+            st.markdown(
+                "<div style='font-size:0.78rem;font-weight:700;color:#2563eb;margin-bottom:6px;letter-spacing:-0.01em;'>"
+                "📊 내 학습 스냅샷 <span style='color:#94a3b8;font-weight:400;font-size:0.7rem;'>최근 4주</span></div>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                f"<div style='font-size:0.78rem;margin-bottom:4px;'><span style='color:#16a34a;font-weight:600;'>📌 강점</span> "
+                f"<span style='color:#334155;'>{s_txt}</span></div>"
+                f"<div style='font-size:0.78rem;'><span style='color:#d97706;font-weight:600;'>🧩 보완</span> "
+                f"<span style='color:#334155;'>{w_txt}</span></div>",
+                unsafe_allow_html=True,
+            )
 
-        st.markdown("")  # 여백
+        st.markdown("")
         _render_left_sidebar(str(student_id), student_handle, state)
         st.markdown('</div>', unsafe_allow_html=True)
 
     with col_center:
         # 추천 공부 개념: 얇은 띠 배너 (AI 튜터 바로 위)
         _render_recommended_concepts_banner(str(student_id), state)
-        st.markdown("**🤖 AI 튜터**")
+        st.markdown(
+            "<div style='font-size:0.88rem;font-weight:700;color:#1e293b;margin:4px 0 2px;"
+            "display:flex;align-items:center;gap:6px;'>"
+            "🤖 AI 튜터</div>",
+            unsafe_allow_html=True,
+        )
         render_center_panel(effective_user, str(student_id), state)
 
     with col_right:
@@ -321,13 +445,19 @@ def _render_recommended_concepts_banner(student_id: str, state: dict) -> None:
 
 def _render_left_sidebar(student_id: str, student_handle: str, state: dict) -> None:
     """좌측: 질의 개념 복습·문제 만들기·지난 문제들·추천 공부 개념 (첨부 UI)."""
-    st.markdown("**💡 질의 개념 복습**")
-    st.caption("AI 튜터에서 나눈 질문을 바탕으로 유사 문제를 풀어 보세요.")
-    st.markdown("**✨ 문제 만들기**")
+    st.markdown(
+        "<div class='mvp-section-title'>💡 질의 개념 복습</div>",
+        unsafe_allow_html=True,
+    )
+    st.caption("AI 튜터 질문 기반으로 유사 문제를 풀어 보세요.")
+    st.markdown("<div style='font-size:0.78rem;font-weight:600;color:#475569;margin:4px 0 2px;'>✨ 문제 만들기</div>", unsafe_allow_html=True)
     _render_quiz_from_qa(student_id, student_handle)
 
-    st.markdown("---")
-    st.markdown("**🕘 지난 문제들**")
+    st.markdown("<hr class='mvp-section-divider'>", unsafe_allow_html=True)
+    st.markdown(
+        "<div class='mvp-section-title'>🕘 지난 문제들</div>",
+        unsafe_allow_html=True,
+    )
     try:
         past_quizzes = list_quizzes(student_id, limit=20)
     except Exception:
@@ -353,13 +483,17 @@ def _render_left_sidebar(student_id: str, student_handle: str, state: dict) -> N
 
 def _render_right_panel(user: dict, student_id: str, state: dict) -> None:
     """우측: 문제 채점기·사진 업로드·지난 채점 이력 (좌측 질의 개념 복습과 같은 선상)."""
-    st.markdown("**✨ 문제 채점기**")
     st.markdown(
-        "풀이한 문제를 사진으로 찍어 업로드하면 AI가 채점해요!"
+        "<div class='mvp-section-title'>✨ 문제 채점기</div>",
+        unsafe_allow_html=True,
     )
+    st.caption("풀이 사진을 업로드하면 AI가 채점해드려요!")
     render_grading_panel(user, student_id, state, _make_image_renderer(), show_title=False)
-    st.markdown("---")
-    st.markdown("**🕘 지난 채점 이력**")
+    st.markdown("<hr class='mvp-section-divider'>", unsafe_allow_html=True)
+    st.markdown(
+        "<div class='mvp-section-title'>🕘 지난 채점 이력</div>",
+        unsafe_allow_html=True,
+    )
     try:
         subs = list_grading_submissions(student_id, limit=5)
     except Exception:

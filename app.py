@@ -20,9 +20,10 @@ def apply_custom_css():
             font-family: 'Pretendard', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
         }
 
-        /* 2. Streamlit 기본 메뉴 및 푸터 숨기기 (헤더는 유지) */
+        /* 2. Streamlit 기본 메뉴 및 푸터 숨기기 */
         #MainMenu {visibility: hidden;}
         footer {visibility: hidden;}
+        header[data-testid="stHeader"] { background: transparent; box-shadow: none; }
 
         /* 3. 전체 레이아웃 폭 및 여백 조정 */
         div.block-container {
@@ -31,82 +32,142 @@ def apply_custom_css():
             padding-bottom: 2rem;
         }
 
-        /* 4. 기본 버튼 스타일 (둥글고 가벼운 그림자) */
+        /* 4. 기본 버튼 스타일 */
         .stButton>button, .stDownloadButton>button {
-            border-radius: 8px;
+            border-radius: 10px;
             font-weight: 600;
-            transition: all 0.25s ease;
+            font-size: 0.88rem;
+            transition: all 0.2s ease;
+            letter-spacing: -0.01em;
         }
-        .stButton>button:hover, .stDownloadButton>button:hover {
+        .stButton>button[kind="primary"], .stDownloadButton>button[kind="primary"] {
+            background: linear-gradient(135deg, #2563eb, #3b82f6);
+            border: none;
+            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+        }
+        .stButton>button[kind="primary"]:hover {
+            background: linear-gradient(135deg, #1d4ed8, #2563eb);
+            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
             transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(15, 23, 42, 0.16);
+        }
+        .stButton>button[kind="secondary"]:hover {
+            border-color: #2563eb;
+            color: #2563eb;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
         }
 
-        /* 5. Expander·카드 정리 */
+        /* 5. Input 스타일 */
+        .stTextInput > div > div > input {
+            border-radius: 10px;
+            border: 1.5px solid #e2e8f0;
+            padding: 0.55rem 0.85rem;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+            font-size: 0.92rem;
+        }
+        .stTextInput > div > div > input:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        /* 6. Expander 스타일 */
         div[data-testid="stExpander"] {
-            border-radius: 8px;
+            border-radius: 10px;
             border: 1px solid #e2e8f0;
+            background: #fff;
         }
         div[data-testid="stExpander"] > div[role="button"] {
-            font-size: 0.9rem;
+            font-size: 0.88rem;
+            color: #475569;
         }
-        /* 6. 메인 = 내용 위주: 카드 테두리 제거, 여백만 */
+
+        /* 7. 컨테이너(border=True) 카드 스타일 */
         div[data-testid="stVerticalBlockBorderWrapper"] {
-            border: none;
-            border-radius: 8px;
+            border-radius: 12px !important;
+            border: 1px solid #e8edf5 !important;
+            box-shadow: 0 1px 6px rgba(15, 23, 42, 0.06);
             padding: 0.75rem 0;
-            box-shadow: none;
         }
-        /* 7. 브라우저 탭 느낌: 탭 리스트를 상단 띠처럼 */
+
+        /* 8. 탭 - 브라우저 탭 느낌 */
         .stTabs [data-baseweb="tab-list"] {
             gap: 0;
             background: #f1f5f9;
-            border-bottom: 1px solid #e2e8f0;
+            border-bottom: 2px solid #e2e8f0;
             padding: 0 0 0 6px;
             margin: 0 -1rem;
-            min-height: 40px;
+            min-height: 42px;
         }
         .stTabs [data-baseweb="tab"] {
             background: transparent;
-            border: 1px solid transparent;
+            border: 1.5px solid transparent;
             border-bottom: none;
             border-radius: 8px 8px 0 0;
-            padding: 8px 16px;
-            margin: 6px 2px 0 0;
-            font-size: 0.9rem;
+            padding: 8px 18px;
+            margin: 5px 2px 0 0;
+            font-size: 0.88rem;
+            font-weight: 500;
+            color: #64748b;
             height: auto;
+            transition: background 0.15s ease;
         }
         .stTabs [data-baseweb="tab"]:first-child { margin-left: 0; }
         .stTabs [aria-selected="true"] {
             background: #fff !important;
             border-color: #e2e8f0 !important;
-            border-bottom: 1px solid #fff !important;
-            margin-bottom: -1px;
-            font-weight: 600;
+            border-bottom: 2px solid #fff !important;
+            margin-bottom: -2px;
+            font-weight: 700;
+            color: #1e293b !important;
         }
-        /* 8. 상단 탭 라디오(커스텀 탭바) 브라우저 탭 느낌 */
+
+        /* 9. 상단 탭 라디오(커스텀 탭바) */
         div[data-testid="stHorizontalBlock"] .stRadio > div {
             flex-wrap: nowrap;
             gap: 0;
             background: #f1f5f9;
             border-radius: 8px 8px 0 0;
             padding: 4px 4px 0;
-            border-bottom: 1px solid #e2e8f0;
+            border-bottom: 2px solid #e2e8f0;
         }
         div[data-testid="stHorizontalBlock"] .stRadio label {
-            padding: 8px 14px;
+            padding: 8px 16px;
             border-radius: 6px 6px 0 0;
-            font-size: 0.9rem;
+            font-size: 0.88rem;
+            font-weight: 500;
             background: transparent;
+            color: #64748b;
         }
         div[data-testid="stHorizontalBlock"] .stRadio label[data-checked="true"] {
             background: #fff !important;
-            font-weight: 600;
+            font-weight: 700;
+            color: #1e293b !important;
             box-shadow: 0 -1px 0 #e2e8f0;
         }
-        /* 9. 서브헤더·캡션 축소 → 내용 위주 */
-        h3 { font-size: 1.05rem !important; margin-top: 0.5rem !important; }
-        .stCaptionContainer { font-size: 0.8rem !important; }
+
+        /* 10. 타이포그래피 */
+        h1 { font-size: 1.6rem !important; font-weight: 800 !important; letter-spacing: -0.03em; color: #1e293b; }
+        h2 { font-size: 1.25rem !important; font-weight: 700 !important; letter-spacing: -0.02em; color: #1e293b; }
+        h3 { font-size: 1rem !important; font-weight: 700 !important; margin-top: 0.5rem !important; color: #1e293b; }
+        .stCaptionContainer { font-size: 0.78rem !important; color: #64748b; }
+        p { color: #334155; line-height: 1.65; }
+
+        /* 11. selectbox 스타일 */
+        .stSelectbox > div > div {
+            border-radius: 10px;
+            border: 1.5px solid #e2e8f0;
+            transition: border-color 0.2s ease;
+        }
+        .stSelectbox > div > div:focus-within {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        /* 12. success/error/info 메시지 */
+        div[data-testid="stAlert"] {
+            border-radius: 10px;
+            border-left-width: 4px;
+        }
         </style>
         """,
         unsafe_allow_html=True,

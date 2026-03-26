@@ -39,6 +39,55 @@ def _render_items(user: dict, items: List[Dict[str, Any]]) -> None:
                 st.info(item.get("explanation_detail"))
 
 
+def _render_weakness_cta(student_id: str, items: List[Dict[str, Any]]) -> None:
+    """오답 항목에서 취약 개념을 추출해 AI 튜터 연결 CTA를 표시."""
+    wrong_items = [it for it in (items or []) if not bool(it.get("is_correct"))]
+    if not wrong_items:
+        return
+
+    # 오답 항목에서 key_concepts 추출
+    all_concepts: list = []
+    for it in wrong_items:
+        for kc in (it.get("key_concepts") or []):
+            if kc and kc not in all_concepts:
+                all_concepts.append(kc)
+
+    if not all_concepts:
+        return
+
+    concepts_str = ", ".join(all_concepts[:4])
+    prefill_msg = f"방금 채점에서 오답이 나왔어요. {concepts_str} 개념을 잘 모르겠는데 설명해주세요!"
+
+    st.markdown(
+        f"""
+        <div style="
+            background:#fffbeb; border:1px solid #fde68a;
+            border-left:4px solid #f59e0b;
+            border-radius:10px; padding:10px 14px; margin-top:8px;
+        ">
+            <div style="font-size:0.78rem;font-weight:700;color:#92400e;margin-bottom:4px;">
+                💡 오답 개념 발견
+            </div>
+            <div style="font-size:0.78rem;color:#78350f;">
+                <b>{concepts_str}</b> 개념에서 오답이 나왔어요.<br>
+                AI 튜터에 바로 질문해서 개념을 정리해보세요!
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if st.button(
+        "🤖 AI 튜터에 이 개념 물어보기",
+        key=f"weakness_cta_{student_id}_{hash(concepts_str)}",
+        type="primary",
+        use_container_width=True,
+    ):
+        state = st.session_state.get("mvp_student_state") or {}
+        state["tutor_inject"] = prefill_msg
+        st.session_state["mvp_student_state"] = state
+        st.rerun()
+
+
 def _dev_debug_box(student_id: str, title: str, data: Dict[str, Any]) -> None:
     if not bool(st.session_state.get("dev_mode", False)):
         return
@@ -224,7 +273,7 @@ def render_grading_panel(user: dict, student_id: str, state: dict, render_image,
                 state["pending_save"] = None
                 clear_last_error(student_id)
 
-                st.success("✅ 채점 완료 + 저장 완료")
+                st.success("✅ 채점 완료!")
                 st.rerun()
                 return
 
@@ -260,9 +309,13 @@ def render_grading_panel(user: dict, student_id: str, state: dict, render_image,
 
                 st.warning("위의 '저장 재시도' 버튼으로 이어서 저장할 수 있어요.")
 
-            _render_items(user, state.get("graded_items") or [])
+            graded = state.get("graded_items") or []
+            _render_items(user, graded)
+            _render_weakness_cta(student_id, graded)
 
-        _render_items(user, state.get("graded_items") or [])
+        graded = state.get("graded_items") or []
+        _render_items(user, graded)
+        _render_weakness_cta(student_id, graded)
 
     except DbServiceError as e:
         persist_last_error(student_id, "DB 오류", "grading_panel", e)

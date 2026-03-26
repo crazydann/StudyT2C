@@ -9,6 +9,7 @@ from services.analytics_service import (
     get_wrong_reason_summary,
     get_student_weekly_monthly_report,
     get_learning_trend_summary_sentence,
+    get_parent_story_summary,
 )
 from ui.quiz_weakness_ui import render_quiz_weakness_section
 
@@ -16,6 +17,42 @@ from ui.quiz_weakness_ui import render_quiz_weakness_section
 def render_ai_report_tab(student_id: str, student_handle: str = ""):
     st.subheader("📊 성취도·추이 리포트")
     st.caption("우리 아이의 학습 성향·평가·시간에 따른 성취도 추이를 확인하세요. 학원 수업이 우리 아이에게 맞게 조정되고 있음을 보여 주는 자료예요.")
+
+    # ── 한 줄 스토리 카드 (학부모용 핵심 요약) ─────────────────────
+    try:
+        story = get_parent_story_summary(student_id, lookback_days=28)
+        improved = story.get("improved") or ""
+        still_weak = story.get("still_weak") or ""
+        next_plan = story.get("next_plan") or ""
+        tips = story.get("parent_tips") or []
+
+        st.markdown(
+            f"""
+            <div style="
+                background: linear-gradient(135deg, #f0fdf4, #ffffff);
+                border: 1.5px solid #bbf7d0;
+                border-left: 5px solid #16a34a;
+                border-radius: 12px;
+                padding: 14px 18px 10px;
+                margin-bottom: 14px;
+            ">
+                <div style="font-size:0.72rem;font-weight:700;color:#16a34a;letter-spacing:0.06em;margin-bottom:8px;">
+                    📬 이번 주 {student_handle} 학습 요약
+                </div>
+                {"<div style='font-size:0.88rem;color:#166534;margin-bottom:4px;'>📈 " + improved + "</div>" if improved else ""}
+                {"<div style='font-size:0.85rem;color:#92400e;margin-bottom:4px;'>⚠️ " + still_weak + "</div>" if still_weak else ""}
+                {"<div style='font-size:0.85rem;color:#1e40af;margin-bottom:4px;'>📌 " + next_plan + "</div>" if next_plan else ""}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if tips:
+            with st.expander("💬 상담 때 이렇게 물어보세요", expanded=False):
+                for tip in tips[:2]:
+                    st.markdown(f"• {tip}")
+    except Exception:
+        pass
+    # ───────────────────────────────────────────────────────────────
 
     try:
         trend_sentence = get_learning_trend_summary_sentence(student_id, lookback_days=14)

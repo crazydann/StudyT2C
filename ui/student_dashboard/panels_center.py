@@ -146,6 +146,32 @@ def render_center_panel(user: dict, student_id: str, state: dict):
     if not isinstance(state.get("messages"), list):
         state["messages"] = []
 
+    # 채점 결과에서 온 취약 개념 자동 질문 주입
+    injected = state.pop("tutor_inject", None)
+    if injected:
+        is_study, category = _classify_study_relevance(injected, studying)
+        with st.spinner("AI 튜터가 답변 중..."):
+            try:
+                subject_info = classify_subject(injected)
+                ans = chat_with_tutor(
+                    student_id=student_id,
+                    user_message=injected,
+                    chat_history=state["messages"],
+                    status=user.get("status") or "break",
+                    subject=subject_info.get("subject", "OTHER"),
+                )
+            except Exception:
+                ans = "잠시 오류가 발생했어요. 직접 질문을 입력해 주세요."
+        state["messages"].append({"role": "user", "content": injected})
+        state["messages"].append({"role": "assistant", "content": ans, "_subject": subject_info.get("subject") if "subject_info" in dir() else ""})
+        try:
+            save_chat_message(student_id=student_id, role="user", content=injected, meta={"auto_injected": True})
+            save_chat_message(student_id=student_id, role="assistant", content=ans, meta={"subject": subject_info.get("subject", "OTHER")})
+        except Exception:
+            pass
+        st.session_state["mvp_student_state"] = state
+        st.rerun()
+
     welcome = "안녕하세요! Focus-Super-AI 학습 도우미예요. 공부하다 궁금한 점을 물어보세요!"
 
     # 대화창: 높이는 CSS에서 브라우저 크기별로 조정(min(55vh,520px) 등)

@@ -25,55 +25,89 @@ def render_student_detail(supabase, teacher_id: str, state: dict, handle_map: di
         st.warning("학생이 선택되지 않았습니다.")
         return
 
-    # 학생 설정은 어드민 상단 '학생 설정' 팝오버에서 표시 (사이드바 제거)
-
-    # 상단 1: 학생 스냅샷 (강점/약점 개념, 질문 스타일)
+    # ── 수업 전 브리핑 카드 ──────────────────────────────────────────
     try:
         profile = get_student_profile(str(student_id))
     except Exception:
         profile = {}
-
-    concepts = profile.get("concepts") or []
-    strong = (profile.get("peer_compare") or {}).get("strong_concepts") or []
-    weak = (profile.get("peer_compare") or {}).get("weak_concepts") or []
-    qs = profile.get("questions_style") or {}
-
-    if concepts:
-        with st.container(border=True):
-            st.markdown("#### 학생 스냅샷 (최근 4주)")
-            c1, c2 = st.columns(2)
-            with c1:
-                if strong:
-                    st.markdown(f"**강한 개념**: {', '.join(strong)}")
-                if weak:
-                    st.markdown(f"**약한 개념**: {', '.join(weak)}")
-            with c2:
-                try:
-                    cq = int((qs.get("conceptual_ratio") or 0) * 100)
-                    pq = int((qs.get("procedural_ratio") or 0) * 100)
-                    kq = int((qs.get("careless_ratio") or 0) * 100)
-                    st.caption(f"질문 스타일 · 개념 {cq}% / 풀이 {pq}% / 실수확인 {kq}%")
-                except Exception:
-                    pass
-
-    # 상단 2: 다음 수업 추천 플랜 (선생님 수업 준비용)
     try:
         plan = get_next_class_plan(str(student_id))
     except Exception:
         plan = {}
 
+    concepts = profile.get("concepts") or []
+    strong = (profile.get("peer_compare") or {}).get("strong_concepts") or []
+    weak = (profile.get("peer_compare") or {}).get("weak_concepts") or []
+    qs = profile.get("questions_style") or {}
     focus = plan.get("focus_concepts") or []
     practice = plan.get("practice_types") or []
+
+    st.markdown(
+        f"""
+        <div style="
+            background: linear-gradient(135deg, #eff6ff, #ffffff);
+            border: 1.5px solid #bfdbfe;
+            border-left: 5px solid #2563eb;
+            border-radius: 12px;
+            padding: 14px 18px 10px;
+            margin-bottom: 12px;
+        ">
+            <div style="font-size:0.72rem;font-weight:700;color:#2563eb;letter-spacing:0.06em;margin-bottom:6px;">
+                📋 수업 전 브리핑 — {student_handle}
+            </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    b1, b2 = st.columns(2)
+    with b1:
+        if strong:
+            st.markdown(
+                "<div style='font-size:0.8rem;'>"
+                f"<span style='color:#16a34a;font-weight:700;'>✅ 강한 개념</span>&nbsp; "
+                + " · ".join(f"<code>{c}</code>" for c in strong[:3])
+                + "</div>",
+                unsafe_allow_html=True,
+            )
+        if weak:
+            st.markdown(
+                "<div style='font-size:0.8rem;margin-top:4px;'>"
+                f"<span style='color:#dc2626;font-weight:700;'>⚠️ 보강 필요</span>&nbsp; "
+                + " · ".join(f"<code>{c}</code>" for c in weak[:3])
+                + "</div>",
+                unsafe_allow_html=True,
+            )
+        if not strong and not weak:
+            st.caption("아직 분석 데이터가 충분하지 않아요.")
+    with b2:
+        try:
+            cq = int((qs.get("conceptual_ratio") or 0) * 100)
+            pq = int((qs.get("procedural_ratio") or 0) * 100)
+            kq = int((qs.get("careless_ratio") or 0) * 100)
+            st.markdown(
+                f"<div style='font-size:0.78rem;color:#475569;'>"
+                f"<b>질문 스타일</b> · 개념이해 {cq}% / 풀이 {pq}% / 실수확인 {kq}%</div>",
+                unsafe_allow_html=True,
+            )
+        except Exception:
+            pass
+
     if focus or practice:
-        with st.container(border=True):
-            st.markdown("#### 다음 수업 추천 플랜")
-            for i, item in enumerate(focus, start=1):
-                st.checkbox(
-                    f"{i}. {item.get('name', '')} — {item.get('suggestion', '')}",
-                    key=f"t_next_plan_{student_id}_{i}",
-                )
-            for j, pt in enumerate(practice, start=1):
-                st.caption(f"보조 활동 {j}: {pt.get('type', '')} · {pt.get('suggestion', '')}")
+        st.markdown(
+            "<div style='font-size:0.78rem;font-weight:700;color:#1e293b;margin:10px 0 4px;'>"
+            "🎯 오늘 수업 액션 아이템</div>",
+            unsafe_allow_html=True,
+        )
+        for i, item in enumerate(focus, start=1):
+            st.checkbox(
+                f"{i}. **{item.get('name', '')}** — {item.get('suggestion', '')}",
+                key=f"t_next_plan_{student_id}_{i}",
+            )
+        for pt in practice:
+            st.caption(f"💡 {pt.get('type', '')} · {pt.get('suggestion', '')}")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+    # ─────────────────────────────────────────────────────────────────
 
     row = st.columns([1, 4])
     with row[0]:

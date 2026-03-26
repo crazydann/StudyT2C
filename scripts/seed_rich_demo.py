@@ -332,12 +332,6 @@ def seed_homework(student_id: str, handle: str, sessions: List[datetime]) -> Non
                 "description": f"{subj_info['weak_concepts'][idx % len(subj_info['weak_concepts'])]} 관련 연습 문제 10문제",
                 "created_at": sess_dt.isoformat(),
             }
-            # optional columns — try adding them (will fail silently if column not in DB)
-            try:
-                hw_payload["due_date"] = due.isoformat()
-                hw_payload["subject_code"] = subj_code
-            except Exception:
-                pass
             hw_res = sb.table("homework_assignments").insert(hw_payload).execute().data or []
             if not hw_res:
                 continue

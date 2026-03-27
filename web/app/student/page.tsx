@@ -46,9 +46,12 @@ export default function StudentPage() {
   const [gradeMode, setGradeMode] = useState<'image' | 'text'>('image')
   const [gradeText, setGradeText] = useState('')
   const [gradeFile, setGradeFile] = useState<File | null>(null)
+  const [gradePreviewUrl, setGradePreviewUrl] = useState<string | null>(null)
+  const [imageRotation, setImageRotation] = useState(0)
   const [gradeLoading, setGradeLoading] = useState(false)
   const [gradedItems, setGradedItems] = useState<GradedItem[] | null>(null)
   const [gradeError, setGradeError] = useState('')
+  const [gradingHistory, setGradingHistory] = useState<{ id: string; created_at: string; stats: { total: number; correct: number; rate: number } }[]>([])
 
   // Homework state
   const [homework, setHomework] = useState<HomeworkItem[]>([])
@@ -106,11 +109,22 @@ export default function StudentPage() {
     }
   }, [])
 
+  const loadGradingHistory = useCallback(async (userId: string) => {
+    try {
+      const res = await fetch(`/api/student/${userId}/grading`)
+      if (res.ok) {
+        const data = await res.json()
+        setGradingHistory((data.submissions || []).slice(0, 5))
+      }
+    } catch {}
+  }, [])
+
   useEffect(() => {
     if (user) {
       loadMessages()
+      loadGradingHistory(user.id)
     }
-  }, [user, loadMessages])
+  }, [user, loadMessages, loadGradingHistory])
 
   useEffect(() => {
     if (activeTab === 'homework' && user) {
@@ -395,15 +409,36 @@ export default function StudentPage() {
                       className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-primary-400 transition-colors"
                       onClick={() => document.getElementById('file-input')?.click()}
                     >
-                      {gradeFile ? (
-                        <div>
-                          <p className="text-sm font-medium text-gray-800">{gradeFile.name}</p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {(gradeFile.size / 1024 / 1024).toFixed(2)} MB
-                          </p>
+                      {gradeFile && gradePreviewUrl ? (
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <img
+                            src={gradePreviewUrl}
+                            alt="preview"
+                            className="max-h-48 mx-auto rounded-lg object-contain transition-transform"
+                            style={{ transform: `rotate(${imageRotation}deg)` }}
+                          />
+                          <div className="flex items-center justify-center gap-2 mt-3">
+                            <button type="button" onClick={() => setImageRotation((r) => r - 90)} className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded">↺ -90°</button>
+                            <button type="button" onClick={() => setImageRotation((r) => r + 90)} className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded">↻ +90°</button>
+                            <button type="button" onClick={() => setImageRotation((r) => r + 180)} className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded">180°</button>
+                            <button type="button" onClick={() => setImageRotation(0)} className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded">초기화</button>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-2">{gradeFile.name} · {(gradeFile.size / 1024 / 1024).toFixed(2)} MB</p>
                           <button
                             type="button"
-                            onClick={(e) => { e.stopPropagation(); setGradeFile(null) }}
+                            onClick={() => { setGradeFile(null); setGradePreviewUrl(null); setImageRotation(0) }}
+                            className="text-xs text-red-500 mt-1 hover:underline"
+                          >
+                            파일 제거
+                          </button>
+                        </div>
+                      ) : gradeFile ? (
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">{gradeFile.name}</p>
+                          <p className="text-xs text-gray-500 mt-1">{(gradeFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setGradeFile(null); setGradePreviewUrl(null); setImageRotation(0) }}
                             className="text-xs text-red-500 mt-2 hover:underline"
                           >
                             파일 제거
@@ -422,7 +457,17 @@ export default function StudentPage() {
                       type="file"
                       accept="image/*"
                       className="hidden"
-                      onChange={(e) => setGradeFile(e.target.files?.[0] || null)}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] || null
+                        setGradeFile(f)
+                        setImageRotation(0)
+                        if (f && f.type.startsWith('image/')) {
+                          const url = URL.createObjectURL(f)
+                          setGradePreviewUrl(url)
+                        } else {
+                          setGradePreviewUrl(null)
+                        }
+                      }}
                     />
                   </div>
                 ) : (
@@ -537,6 +582,26 @@ export default function StudentPage() {
                             </div>
                           )}
                         </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Grading History */}
+            {gradingHistory.length > 0 && (
+              <div className="card">
+                <h3 className="text-base font-semibold text-gray-800 mb-3">최근 채점 이력</h3>
+                <div className="space-y-2">
+                  {gradingHistory.map((h) => (
+                    <div key={h.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                      <span className="text-sm text-gray-600">{new Date(h.created_at).toLocaleDateString('ko-KR')}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-gray-400">{h.stats.total}문제</span>
+                        <span className={`text-sm font-semibold ${h.stats.rate >= 70 ? 'text-green-600' : h.stats.rate >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
+                          {h.stats.rate}%
+                        </span>
                       </div>
                     </div>
                   ))}

@@ -48,9 +48,17 @@ interface HomeworkItem {
   non_submit_reason: { reason_code: string } | null
 }
 
+interface FocusStats {
+  leftTabCount: number
+  firstUse: string | null
+  lastUse: string | null
+  todayEventCount: number
+}
+
 interface StudentData {
   report: Report | null
   homework: HomeworkItem[]
+  focusStats: FocusStats | null
   loadedAt: Date
 }
 
@@ -92,16 +100,18 @@ export default function ParentPage() {
 
   const loadStudentData = useCallback(async (studentId: string) => {
     try {
-      const [reportRes, hwRes] = await Promise.all([
+      const [reportRes, hwRes, summaryRes] = await Promise.all([
         fetch(`/api/student/${studentId}/report`),
         fetch(`/api/homework?studentId=${studentId}`),
+        fetch(`/api/student/${studentId}/summary`),
       ])
-      const [reportData, hwData] = await Promise.all([reportRes.json(), hwRes.json()])
+      const [reportData, hwData, summaryData] = await Promise.all([reportRes.json(), hwRes.json(), summaryRes.json()])
       setStudentData((prev) => ({
         ...prev,
         [studentId]: {
           report: reportData.ok ? reportData.report : null,
           homework: hwData.ok ? hwData.homework : [],
+          focusStats: summaryData.ok ? summaryData.summary.focusStats : null,
           loadedAt: new Date(),
         },
       }))
@@ -220,6 +230,7 @@ export default function ParentPage() {
           {students.map((student) => {
             const data = studentData[student.id]
             const report = data?.report
+            const focusStats = data?.focusStats
             const hw = getHomeworkSummary(data?.homework || [])
             const period = getPeriod(student.id)
             const chartData = period === 'week' ? report?.weeklyChart : report?.monthlyChart
@@ -262,6 +273,42 @@ export default function ParentPage() {
                         : '공부로 전환'}
                     </button>
                   </div>
+                </div>
+
+                {/* Focus stats */}
+                <div className="card">
+                  <h3 className="font-semibold text-gray-800 mb-3">오늘 집중 현황</h3>
+                  {focusStats && focusStats.todayEventCount > 0 ? (
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="text-center">
+                        <div className={`text-2xl font-bold ${focusStats.leftTabCount >= 5 ? 'text-red-500' : focusStats.leftTabCount >= 2 ? 'text-orange-500' : 'text-green-600'}`}>
+                          {focusStats.leftTabCount}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-0.5">탭 이탈 횟수</div>
+                        {focusStats.leftTabCount >= 5 && (
+                          <div className="text-xs text-red-500 mt-1">주의 필요</div>
+                        )}
+                      </div>
+                      <div className="text-center">
+                        <div className="text-sm font-semibold text-gray-700">
+                          {focusStats.firstUse
+                            ? new Date(focusStats.firstUse).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+                            : '-'}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-0.5">첫 접속</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-sm font-semibold text-gray-700">
+                          {focusStats.lastUse
+                            ? new Date(focusStats.lastUse).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+                            : '-'}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-0.5">마지막 활동</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400">오늘 접속 기록이 없습니다.</p>
+                  )}
                 </div>
 
                 {/* Story card */}

@@ -29,15 +29,19 @@ export function getSupabaseAdmin(): SupabaseClient {
   return _supabaseAdmin
 }
 
-// 기존 코드와의 호환성을 위한 lazy proxy
-export const supabase = new Proxy({} as SupabaseClient, {
-  get(_target, prop) {
-    return getSupabase()[prop as keyof SupabaseClient]
-  },
-})
+// this 바인딩을 유지하는 Proxy
+function makeLazyProxy(getter: () => SupabaseClient): SupabaseClient {
+  return new Proxy({} as SupabaseClient, {
+    get(_target, prop) {
+      const client = getter()
+      const value = client[prop as keyof SupabaseClient]
+      if (typeof value === 'function') {
+        return (value as Function).bind(client)
+      }
+      return value
+    },
+  })
+}
 
-export const supabaseAdmin = new Proxy({} as SupabaseClient, {
-  get(_target, prop) {
-    return getSupabaseAdmin()[prop as keyof SupabaseClient]
-  },
-})
+export const supabase = makeLazyProxy(getSupabase)
+export const supabaseAdmin = makeLazyProxy(getSupabaseAdmin)

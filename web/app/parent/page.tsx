@@ -72,6 +72,9 @@ export default function ParentPage() {
   const [expandedSections, setExpandedSections] = useState<Record<string, Record<string, boolean>>>({})
   const [reportPeriod, setReportPeriod] = useState<Record<string, 'week' | 'month'>>({})
   const [togglingMode, setTogglingMode] = useState<string | null>(null)
+  const [notifSettings, setNotifSettings] = useState<Record<string, { email: string; emailEnabled: boolean; receiveWeeklyReport: boolean; receiveOfftopic: boolean }>>({})
+  const [savingNotif, setSavingNotif] = useState<string | null>(null)
+  const [notifSaved, setNotifSaved] = useState<string | null>(null)
 
   useEffect(() => {
     async function checkAuth() {
@@ -121,8 +124,9 @@ export default function ParentPage() {
   useEffect(() => {
     students.forEach((s) => {
       if (!studentData[s.id]) loadStudentData(s.id)
+      if (!notifSettings[s.id]) loadNotifSettings(s.id)
     })
-  }, [students, studentData, loadStudentData])
+  }, [students, studentData, notifSettings, loadStudentData, loadNotifSettings])
 
   function toggleSection(studentId: string, section: string) {
     setExpandedSections((prev) => ({
@@ -133,6 +137,46 @@ export default function ParentPage() {
 
   function getPeriod(studentId: string): 'week' | 'month' {
     return reportPeriod[studentId] || 'week'
+  }
+
+  const loadNotifSettings = useCallback(async (studentId: string) => {
+    try {
+      const res = await fetch(`/api/notification-settings?studentId=${studentId}`)
+      const data = await res.json()
+      if (data.ok && data.settings) {
+        setNotifSettings((prev) => ({
+          ...prev,
+          [studentId]: {
+            email: data.settings.email || '',
+            emailEnabled: data.settings.email_enabled ?? false,
+            receiveWeeklyReport: data.settings.receive_weekly_report ?? false,
+            receiveOfftopic: data.settings.receive_offtopic ?? false,
+          },
+        }))
+      } else {
+        setNotifSettings((prev) => ({ ...prev, [studentId]: { email: '', emailEnabled: false, receiveWeeklyReport: false, receiveOfftopic: false } }))
+      }
+    } catch {}
+  }, [])
+
+  async function saveNotifSettings(studentId: string) {
+    const s = notifSettings[studentId]
+    if (!s) return
+    setSavingNotif(studentId)
+    try {
+      await fetch('/api/notification-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId, ...s }),
+      })
+      setNotifSaved(studentId)
+      setTimeout(() => setNotifSaved(null), 2000)
+    } catch {}
+    setSavingNotif(null)
+  }
+
+  function updateNotif(studentId: string, field: string, value: string | boolean) {
+    setNotifSettings((prev) => ({ ...prev, [studentId]: { ...(prev[studentId] || { email: '', emailEnabled: false, receiveWeeklyReport: false, receiveOfftopic: false }), [field]: value } }))
   }
 
   async function toggleStudentMode(studentId: string, currentStatus: string) {
@@ -622,6 +666,58 @@ export default function ParentPage() {
                     </div>
                   </div>
                 )}
+
+                {/* Notification settings */}
+                <div className="card">
+                  <button
+                    onClick={() => toggleSection(student.id, 'notif')}
+                    className="w-full flex items-center justify-between"
+                  >
+                    <span className="font-semibold text-gray-800">🔔 알림 설정</span>
+                    <span className="text-gray-400 text-sm">{sections.notif ? '▲ 닫기' : '▼ 열기'}</span>
+                  </button>
+                  {sections.notif && (
+                    <div className="mt-4 space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">알림 받을 이메일</label>
+                        <input
+                          type="email"
+                          value={notifSettings[student.id]?.email || ''}
+                          onChange={(e) => updateNotif(student.id, 'email', e.target.value)}
+                          placeholder="이메일 주소 입력"
+                          className="input-field"
+                        />
+                      </div>
+                      <div className="space-y-3">
+                        {[
+                          { field: 'emailEnabled', label: '이메일 알림 활성화' },
+                          { field: 'receiveWeeklyReport', label: '주간 학습 리포트' },
+                          { field: 'receiveOfftopic', label: '탭 이탈·공부 외 질문 알림' },
+                        ].map(({ field, label }) => (
+                          <label key={field} className="flex items-center gap-3 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={(notifSettings[student.id] as Record<string, boolean | string>)?.[field] as boolean || false}
+                              onChange={(e) => updateNotif(student.id, field, e.target.checked)}
+                              className="w-4 h-4 rounded text-primary-600"
+                            />
+                            <span className="text-sm text-gray-700">{label}</span>
+                          </label>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => saveNotifSettings(student.id)}
+                          disabled={savingNotif === student.id}
+                          className="btn-primary text-sm py-2"
+                        >
+                          {savingNotif === student.id ? '저장 중...' : '저장'}
+                        </button>
+                        {notifSaved === student.id && <span className="text-xs text-green-600 font-medium">저장되었습니다!</span>}
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {students.length > 1 && <hr className="border-gray-200 hidden md:block" />}
               </div>

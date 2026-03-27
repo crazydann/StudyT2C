@@ -75,6 +75,14 @@ interface Report {
   weakConcepts: { name: string; count: number }[]
 }
 
+interface ClassStudent {
+  id: string; handle: string; status: string
+  correctRate: number; submissionRate: number; offTopicCount: number; riskScore: number; atRisk: boolean
+}
+interface ClassData {
+  totalCount: number; atRiskCount: number; avgCorrectRate: number; avgSubmissionRate: number; students: ClassStudent[]
+}
+
 type Panel = 'briefing' | 'report' | 'notes' | 'grading' | 'homework'
 
 export default function TeacherPage() {
@@ -83,6 +91,9 @@ export default function TeacherPage() {
   const [loading, setLoading] = useState(true)
   const [students, setStudents] = useState<Student[]>([])
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
+  const [classView, setClassView] = useState(false)
+  const [classData, setClassData] = useState<ClassData | null>(null)
+  const [classLoading, setClassLoading] = useState(false)
   const [activePanel, setActivePanel] = useState<Panel>('briefing')
 
   // Per-student data
@@ -94,6 +105,8 @@ export default function TeacherPage() {
   const [showStudyChat, setShowStudyChat] = useState(false)
   const [showOffTopic, setShowOffTopic] = useState(false)
   const [note, setNote] = useState('')
+  const [noteOneliner, setNoteOneliner] = useState('')
+  const [noteCompletion, setNoteCompletion] = useState<'충분히' | '일부' | '미흡'>('충분히')
   const [noteSaved, setNoteSaved] = useState(false)
   const [noteSaving, setNoteSaving] = useState(false)
   const [submissions, setSubmissions] = useState<Submission[]>([])
@@ -146,11 +159,28 @@ export default function TeacherPage() {
     finally { setReportLoading(false) }
   }, [])
 
+  const loadClassData = useCallback(async () => {
+    setClassLoading(true)
+    try {
+      const res = await fetch('/api/class/summary')
+      const data = await res.json()
+      if (data.ok) setClassData(data.classData)
+    } catch {}
+    finally { setClassLoading(false) }
+  }, [])
+
   const loadNote = useCallback(async (studentId: string) => {
     try {
       const res = await fetch(`/api/student/${studentId}/notes`)
       const data = await res.json()
-      if (data.ok) setNote(data.note?.note || '')
+      const raw = data.note?.note || ''
+      // Parse structured format
+      const onelinerMatch = raw.match(/^ONELINER:(.+)$/m)
+      const completionMatch = raw.match(/^COMPLETION:(.+)$/m)
+      const notesMatch = raw.match(/^---\n([\s\S]*)$/)
+      setNoteOneliner(onelinerMatch ? onelinerMatch[1].trim() : '')
+      setNoteCompletion((completionMatch ? completionMatch[1].trim() : '충분히') as '충분히' | '일부' | '미흡')
+      setNote(notesMatch ? notesMatch[1].trim() : raw.replace(/^(ONELINER|COMPLETION):.+\n?/gm, '').replace(/^---\n?/, '').trim())
     } catch {}
   }, [])
 
@@ -175,10 +205,16 @@ export default function TeacherPage() {
   }, [])
 
   useEffect(() => {
+    if (user) loadClassData()
+  }, [user, loadClassData])
+
+  useEffect(() => {
     if (!selectedStudent) return
     setSummary(null)
     setReport(null)
     setNote('')
+    setNoteOneliner('')
+    setNoteCompletion('충분히')
     setSubmissions([])
     setHomework([])
     setActivePanel('briefing')
@@ -199,10 +235,11 @@ export default function TeacherPage() {
     if (!selectedStudent) return
     setNoteSaving(true)
     try {
+      const structured = `ONELINER:${noteOneliner}\nCOMPLETION:${noteCompletion}\n---\n${note}`
       await fetch(`/api/student/${selectedStudent.id}/notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ note }),
+        body: JSON.stringify({ note: structured }),
       })
       setNoteSaved(true)
       setTimeout(() => setNoteSaved(false), 2000)
@@ -256,6 +293,15 @@ export default function TeacherPage() {
         {/* Desktop sidebar (always visible on md+) */}
         <aside className="hidden md:block w-56 flex-shrink-0">
           <div className="card p-4">
+            {/* 반 요약 button */}
+            <button
+              onClick={() => { setClassView(true); setSelectedStudent(null) }}
+              className={`w-full text-left px-3 py-2.5 rounded-lg mb-3 transition-colors text-sm font-medium flex items-center gap-2 ${
+                classView ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <span>📊</span> 반 요약
+            </button>
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
               담당 학생 ({students.length}명)
             </h2>
@@ -266,7 +312,7 @@ export default function TeacherPage() {
                 {students.map((student) => (
                   <button
                     key={student.id}
-                    onClick={() => setSelectedStudent(student)}
+                    onClick={() => { setSelectedStudent(student); setClassView(false) }}
                     className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors ${
                       selectedStudent?.id === student.id
                         ? 'bg-primary-50 text-primary-700 font-medium'
@@ -300,7 +346,7 @@ export default function TeacherPage() {
                   {students.map((student) => (
                     <button
                       key={student.id}
-                      onClick={() => setSelectedStudent(student)}
+                      onClick={() => { setSelectedStudent(student); setClassView(false) }}
                       className="w-full text-left px-4 py-3 rounded-xl bg-gray-50 hover:bg-primary-50 hover:text-primary-700 transition-colors flex items-center gap-3"
                     >
                       <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-base">
@@ -320,14 +366,112 @@ export default function TeacherPage() {
         )}
 
         {/* Main */}
-        <main className={`flex-1 min-w-0 ${!selectedStudent ? 'hidden md:block' : ''}`}>
-          {!selectedStudent ? (
+        <main className={`flex-1 min-w-0 ${!selectedStudent && !classView ? 'hidden md:block' : ''}`}>
+          {/* ── 반 요약 ── */}
+          {classView && !selectedStudent && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">📊</span>
+                <h2 className="text-xl font-bold text-gray-900">반 전체 요약</h2>
+              </div>
+              {classLoading ? (
+                <div className="card text-center py-10">
+                  <div className="animate-spin h-8 w-8 border-4 border-primary-600 border-t-transparent rounded-full mx-auto" />
+                </div>
+              ) : classData ? (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="card text-center">
+                      <div className="text-3xl font-bold text-gray-800 mb-1">{classData.totalCount}명</div>
+                      <div className="text-xs text-gray-500">전체 학생</div>
+                    </div>
+                    <div className="card text-center">
+                      <div className={`text-3xl font-bold mb-1 ${classData.atRiskCount > 0 ? 'text-red-600' : 'text-green-600'}`}>{classData.atRiskCount}명</div>
+                      <div className="text-xs text-gray-500">주의 학생</div>
+                    </div>
+                    <div className="card text-center">
+                      <div className="text-3xl font-bold text-primary-600 mb-1">{classData.avgCorrectRate}%</div>
+                      <div className="text-xs text-gray-500">평균 정답률</div>
+                    </div>
+                    <div className="card text-center">
+                      <div className="text-3xl font-bold text-green-600 mb-1">{classData.avgSubmissionRate}%</div>
+                      <div className="text-xs text-gray-500">평균 숙제 제출률</div>
+                    </div>
+                  </div>
+                  {classData.atRiskCount > 0 && (
+                    <div className="card border-l-4 border-l-red-500 bg-red-50">
+                      <p className="text-sm font-semibold text-red-700 mb-2">⚠️ 주의 필요 학생</p>
+                      <div className="space-y-2">
+                        {classData.students.filter(s => s.atRisk).map(s => (
+                          <div key={s.id} className="flex items-center justify-between">
+                            <button
+                              onClick={() => { setSelectedStudent(students.find(st => st.id === s.id) || null); setClassView(false) }}
+                              className="text-sm font-medium text-red-700 hover:underline"
+                            >
+                              {s.handle}
+                            </button>
+                            <div className="flex gap-3 text-xs text-gray-600">
+                              <span>정답률 {s.correctRate}%</span>
+                              <span>제출률 {s.submissionRate}%</span>
+                              <span className="font-semibold text-red-600">위험도 {s.riskScore}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="card overflow-x-auto">
+                    <h3 className="font-semibold text-gray-800 mb-4">학생별 현황</h3>
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
+                          <th className="pb-2 pr-4">이름</th>
+                          <th className="pb-2 pr-4">모드</th>
+                          <th className="pb-2 pr-4 text-right">정답률</th>
+                          <th className="pb-2 pr-4 text-right">제출률</th>
+                          <th className="pb-2 pr-4 text-right">이탈질문</th>
+                          <th className="pb-2 text-right">위험도</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {classData.students.map(s => (
+                          <tr key={s.id} className={`border-b border-gray-50 last:border-0 ${s.atRisk ? 'bg-red-50' : ''}`}>
+                            <td className="py-2 pr-4">
+                              <button
+                                onClick={() => { setSelectedStudent(students.find(st => st.id === s.id) || null); setClassView(false) }}
+                                className="font-medium text-primary-600 hover:underline"
+                              >
+                                {s.handle}
+                              </button>
+                            </td>
+                            <td className="py-2 pr-4">
+                              <span className={`text-xs px-2 py-0.5 rounded-full ${s.status === 'studying' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                {s.status === 'studying' ? '공부' : '휴식'}
+                              </span>
+                            </td>
+                            <td className={`py-2 pr-4 text-right font-medium ${s.correctRate >= 70 ? 'text-green-600' : s.correctRate >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>{s.correctRate}%</td>
+                            <td className={`py-2 pr-4 text-right ${s.submissionRate >= 70 ? 'text-green-600' : 'text-orange-500'}`}>{s.submissionRate}%</td>
+                            <td className="py-2 pr-4 text-right text-gray-600">{s.offTopicCount}건</td>
+                            <td className={`py-2 text-right font-semibold ${s.riskScore >= 70 ? 'text-red-600' : s.riskScore >= 50 ? 'text-orange-500' : 'text-green-600'}`}>{s.riskScore}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              ) : (
+                <div className="card text-center py-8"><p className="text-gray-400">데이터를 불러오지 못했습니다.</p></div>
+              )}
+            </div>
+          )}
+
+          {!selectedStudent && !classView ? (
             <div className="card text-center py-16">
               <div className="text-5xl mb-4">👈</div>
               <h3 className="text-lg font-semibold text-gray-700 mb-2">학생을 선택해주세요</h3>
               <p className="text-sm text-gray-400">왼쪽 목록에서 학생을 선택하면 상세 정보를 볼 수 있습니다.</p>
             </div>
-          ) : (
+          ) : selectedStudent ? (
             <div className="space-y-4">
               {/* Mobile back button */}
               <button
@@ -683,20 +827,65 @@ export default function TeacherPage() {
 
               {/* ── Notes Panel ── */}
               {activePanel === 'notes' && (
-                <div className="card">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-semibold text-gray-800">상담 노트</h3>
-                    {noteSaved && <span className="text-xs text-green-600 font-medium">저장되었습니다!</span>}
+                <div className="space-y-4">
+                  <div className="card">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-semibold text-gray-800">상담 로그</h3>
+                      {noteSaved && <span className="text-xs text-green-600 font-medium">저장되었습니다!</span>}
+                    </div>
+                    {/* One-liner */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">한 줄 요약</label>
+                      <input
+                        type="text"
+                        value={noteOneliner}
+                        onChange={(e) => setNoteOneliner(e.target.value)}
+                        placeholder="예) 이차방정식 개념 보강 필요, 숙제 습관 개선 중"
+                        className="input-field"
+                      />
+                    </div>
+                    {/* Completion level */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">상담 완료도</label>
+                      <div className="flex gap-2">
+                        {(['충분히', '일부', '미흡'] as const).map((level) => (
+                          <button
+                            key={level}
+                            onClick={() => setNoteCompletion(level)}
+                            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                              noteCompletion === level
+                                ? level === '충분히' ? 'bg-green-600 text-white' : level === '일부' ? 'bg-yellow-500 text-white' : 'bg-red-500 text-white'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            {level === '충분히' ? '충분히 다룸' : level === '일부' ? '일부만 다룸' : '거의 못 다룸'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Notes textarea */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">상세 노트</label>
+                      <textarea
+                        value={note}
+                        onChange={(e) => setNote(e.target.value)}
+                        placeholder={`${selectedStudent.handle} 학생 상담 내용, 특이사항 등을 기록하세요.`}
+                        className="input-field h-48 resize-none"
+                      />
+                    </div>
+                    <button onClick={saveNote} disabled={noteSaving} className="btn-primary">
+                      {noteSaving ? '저장 중...' : '저장'}
+                    </button>
                   </div>
-                  <textarea
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    placeholder={`${selectedStudent.handle} 학생에 대한 상담 노트를 작성하세요.`}
-                    className="input-field h-64 resize-none mb-4"
-                  />
-                  <button onClick={saveNote} disabled={noteSaving} className="btn-primary">
-                    {noteSaving ? '저장 중...' : '저장'}
-                  </button>
+                  {/* Preview */}
+                  {(noteOneliner || note) && (
+                    <div className="card bg-gray-50 border border-gray-200">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">저장된 내용 미리보기</p>
+                      {noteOneliner && <p className="text-sm font-medium text-gray-800 mb-1">📌 {noteOneliner}</p>}
+                      <p className="text-xs text-gray-500 mb-2">완료도: <span className={`font-medium ${noteCompletion === '충분히' ? 'text-green-600' : noteCompletion === '일부' ? 'text-yellow-600' : 'text-red-600'}`}>{noteCompletion === '충분히' ? '충분히 다룸' : noteCompletion === '일부' ? '일부만 다룸' : '거의 못 다룸'}</span></p>
+                      {note && <p className="text-sm text-gray-600 whitespace-pre-wrap">{note}</p>}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -820,7 +1009,7 @@ export default function TeacherPage() {
                 </div>
               )}
             </div>
-          )}
+          ) : null}
         </main>
       </div>
     </div>

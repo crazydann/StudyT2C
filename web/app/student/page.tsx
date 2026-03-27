@@ -61,6 +61,7 @@ export default function StudentPage() {
   const [hwLoading, setHwLoading] = useState(false)
   const [selectedReason, setSelectedReason] = useState<Record<string, string>>({})
   const [submittingReason, setSubmittingReason] = useState<string | null>(null)
+  const [pendingHwCount, setPendingHwCount] = useState<number | null>(null)
 
   useEffect(() => {
     async function checkAuth() {
@@ -147,6 +148,18 @@ export default function StudentPage() {
     if (user) {
       loadMessages()
       loadGradingHistory(user.id)
+      // Load pending homework count for "오늘 할 일"
+      fetch('/api/homework')
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.ok) {
+            const pending = (d.homework || []).filter(
+              (h: HomeworkItem) => !h.submission && !h.non_submit_reason
+            ).length
+            setPendingHwCount(pending)
+          }
+        })
+        .catch(() => {})
     }
   }, [user, loadMessages, loadGradingHistory])
 
@@ -332,6 +345,23 @@ export default function StudentPage() {
         {activeTab === 'chat' && (
           <div className="flex flex-col h-[calc(100vh-160px)]">
             <div className="flex-1 overflow-y-auto space-y-4 pb-4">
+              {/* 오늘 할 일 */}
+              {pendingHwCount !== null && pendingHwCount > 0 && (
+                <div
+                  className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-amber-100 transition-colors"
+                  onClick={() => setActiveTab('homework')}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg">📋</span>
+                    <div>
+                      <p className="text-sm font-semibold text-amber-800">오늘 할 일</p>
+                      <p className="text-xs text-amber-700">미제출 숙제 {pendingHwCount}건이 있어요</p>
+                    </div>
+                  </div>
+                  <span className="text-amber-600 text-sm">›</span>
+                </div>
+              )}
+
               {/* Studying mode notice */}
               {studentMode === 'studying' && (
                 <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center gap-3 text-sm text-green-700">

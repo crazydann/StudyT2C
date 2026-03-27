@@ -62,6 +62,7 @@ export default function ParentPage() {
   const [studentData, setStudentData] = useState<Record<string, StudentData>>({})
   const [expandedSections, setExpandedSections] = useState<Record<string, Record<string, boolean>>>({})
   const [reportPeriod, setReportPeriod] = useState<Record<string, 'week' | 'month'>>({})
+  const [togglingMode, setTogglingMode] = useState<string | null>(null)
 
   useEffect(() => {
     async function checkAuth() {
@@ -121,6 +122,24 @@ export default function ParentPage() {
 
   function getPeriod(studentId: string): 'week' | 'month' {
     return reportPeriod[studentId] || 'week'
+  }
+
+  async function toggleStudentMode(studentId: string, currentStatus: string) {
+    const newStatus = currentStatus === 'studying' ? 'break' : 'studying'
+    setTogglingMode(studentId)
+    try {
+      const res = await fetch(`/api/student/${studentId}/mode`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      if (res.ok) {
+        setStudents((prev) =>
+          prev.map((s) => (s.id === studentId ? { ...s, status: newStatus } : s))
+        )
+      }
+    } catch {}
+    setTogglingMode(null)
   }
 
   async function handleLogout() {
@@ -185,13 +204,36 @@ export default function ParentPage() {
             return (
               <div key={student.id} className="space-y-4">
                 {/* Student header */}
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 font-bold text-lg">
-                    {student.handle[0].toUpperCase()}
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 font-bold text-lg">
+                      {student.handle[0].toUpperCase()}
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900">{student.handle}</h2>
+                      <p className="text-sm text-gray-400">학생</p>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">{student.handle}</h2>
-                    <p className="text-sm text-gray-400">학생</p>
+                  {/* Mode toggle */}
+                  <div className="flex items-center gap-3">
+                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${student.status === 'studying' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                      {student.status === 'studying' ? '공부 모드' : '휴식 모드'}
+                    </span>
+                    <button
+                      onClick={() => toggleStudentMode(student.id, student.status)}
+                      disabled={togglingMode === student.id}
+                      className={`text-sm px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                        student.status === 'studying'
+                          ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+                          : 'bg-green-100 text-green-700 hover:bg-green-200'
+                      }`}
+                    >
+                      {togglingMode === student.id
+                        ? '변경 중...'
+                        : student.status === 'studying'
+                        ? '휴식으로 전환'
+                        : '공부로 전환'}
+                    </button>
                   </div>
                 </div>
 

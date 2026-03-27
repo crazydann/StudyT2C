@@ -94,6 +94,21 @@ export async function GET(
       .eq('role', 'user')
       .gte('created_at', sevenDaysAgo.toISOString())
 
+    // Get today's focus events
+    const todayStart = new Date()
+    todayStart.setHours(0, 0, 0, 0)
+
+    const { data: focusEvents } = await supabaseAdmin
+      .from('focus_events')
+      .select('event_type, created_at')
+      .eq('student_user_id', studentId)
+      .gte('created_at', todayStart.toISOString())
+      .order('created_at', { ascending: true })
+
+    const leftTabCount = (focusEvents || []).filter((e) => e.event_type === 'left_tab').length
+    const firstUse = focusEvents && focusEvents.length > 0 ? focusEvents[0].created_at : null
+    const lastUse = focusEvents && focusEvents.length > 0 ? focusEvents[focusEvents.length - 1].created_at : null
+
     return NextResponse.json({
       ok: true,
       summary: {
@@ -103,6 +118,13 @@ export async function GET(
         homeworkRate,
         chatCount: chatCount || 0,
         correctRate,
+        focusStats: {
+          leftTabCount,
+          firstUse,
+          lastUse,
+          todayEventCount: (focusEvents || []).length,
+        },
+        currentMode: student?.status || 'break',
       },
     })
   } catch (err) {

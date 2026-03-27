@@ -9,6 +9,7 @@ interface Message {
   role: 'user' | 'assistant'
   content: string
   created_at: string
+  meta?: { mode?: string; is_study?: boolean; offtopic_category?: string }
 }
 
 interface GradedItem {
@@ -32,9 +33,11 @@ type Tab = 'chat' | 'grade' | 'homework'
 
 export default function StudentPage() {
   const router = useRouter()
-  const [user, setUser] = useState<{ id: string; handle: string } | null>(null)
+  const [user, setUser] = useState<{ id: string; handle: string; status?: string } | null>(null)
+  const [studentMode, setStudentMode] = useState<'studying' | 'break'>('break')
   const [activeTab, setActiveTab] = useState<Tab>('chat')
   const [loading, setLoading] = useState(true)
+  const [showFocusWarning, setShowFocusWarning] = useState(false)
 
   // Chat state
   const [messages, setMessages] = useState<Message[]>([])
@@ -73,6 +76,7 @@ export default function StudentPage() {
           return
         }
         setUser(data.user)
+        setStudentMode(data.user?.status === 'studying' ? 'studying' : 'break')
       } catch {
         router.push('/login')
       } finally {
@@ -81,6 +85,26 @@ export default function StudentPage() {
     }
     checkAuth()
   }, [router])
+
+  // Focus tracker: detect tab leave/return and report to server
+  useEffect(() => {
+    if (!user) return
+    const handleVisibilityChange = () => {
+      const eventType = document.hidden ? 'left_tab' : 'returned_tab'
+      fetch('/api/focus', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_type: eventType }),
+      }).catch(() => {})
+
+      if (!document.hidden && studentMode === 'studying') {
+        setShowFocusWarning(true)
+        setTimeout(() => setShowFocusWarning(false), 4000)
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [user, studentMode])
 
   const loadMessages = useCallback(async () => {
     try {
@@ -256,6 +280,13 @@ export default function StudentPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Focus return warning toast */}
+      {showFocusWarning && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-amber-500 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-medium animate-bounce">
+          공부 시간이에요! 집중해 주세요 📚
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -263,9 +294,14 @@ export default function StudentPage() {
             <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
               <span className="text-white text-xs font-bold">T2C</span>
             </div>
-            <div>
+            <div className="flex items-center gap-2">
               <span className="font-semibold text-gray-900">StudyT2C</span>
-              <span className="ml-2 text-sm text-gray-500">{user?.handle}</span>
+              <span className="text-sm text-gray-500">{user?.handle}</span>
+              {studentMode === 'studying' ? (
+                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">공부 중</span>
+              ) : (
+                <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium">휴식 중</span>
+              )}
             </div>
           </div>
           <button onClick={handleLogout} className="text-sm text-gray-500 hover:text-gray-700">
@@ -296,6 +332,14 @@ export default function StudentPage() {
         {activeTab === 'chat' && (
           <div className="flex flex-col h-[calc(100vh-160px)]">
             <div className="flex-1 overflow-y-auto space-y-4 pb-4">
+              {/* Studying mode notice */}
+              {studentMode === 'studying' && (
+                <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center gap-3 text-sm text-green-700">
+                  <span className="text-lg">📚</span>
+                  <span>공부 모드가 활성화되어 있어요. 학습 관련 질문만 답변해 드려요.</span>
+                </div>
+              )}
+
               {messages.length === 0 ? (
                 <div className="text-center py-16">
                   <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -303,7 +347,9 @@ export default function StudentPage() {
                   </div>
                   <h3 className="text-lg font-semibold text-gray-800 mb-2">AI 튜터에 오신 것을 환영합니다!</h3>
                   <p className="text-gray-500 text-sm max-w-sm mx-auto">
-                    수학, 국어, 영어, 과학, 사회 등 학습 관련 질문을 자유롭게 해보세요.
+                    {studentMode === 'studying'
+                      ? '공부 모드예요. 수학, 국어, 영어, 과학, 사회 등 학습 질문을 해보세요!'
+                      : '수학, 국어, 영어, 과학, 사회 등 학습 관련 질문을 자유롭게 해보세요.'}
                   </p>
                 </div>
               ) : (

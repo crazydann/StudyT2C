@@ -11,7 +11,6 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const studentId = searchParams.get('studentId') || session.id
 
-    // Only allow students to see their own messages, or teachers/parents can see student messages
     const { data: messages, error } = await supabaseAdmin
       .from('chat_messages')
       .select('*')
@@ -42,6 +41,15 @@ export async function POST(request: NextRequest) {
 
     const targetStudentId = studentId || session.id
 
+    // Get student's current mode
+    const { data: studentRow } = await supabaseAdmin
+      .from('users')
+      .select('status')
+      .eq('id', targetStudentId)
+      .single()
+
+    const mode = studentRow?.status === 'studying' ? 'studying' : 'break'
+
     // Save user message
     const { error: insertError } = await supabaseAdmin
       .from('chat_messages')
@@ -49,7 +57,7 @@ export async function POST(request: NextRequest) {
         student_user_id: targetStudentId,
         role: 'user',
         content: message.trim(),
-        meta: {},
+        meta: { mode },
       })
 
     if (insertError) throw insertError
@@ -66,22 +74,22 @@ export async function POST(request: NextRequest) {
       .reverse()
       .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
 
-    // Get AI response
-    const reply = await textChat(historyMessages)
+    // Get AI response with mode-aware system prompt
+    const { reply, isStudy, offTopicCategory } = await textChat(historyMessages, mode)
 
-    // Save assistant response
+    // Save assistant response with study metadata
     const { error: replyError } = await supabaseAdmin
       .from('chat_messages')
       .insert({
         student_user_id: targetStudentId,
         role: 'assistant',
         content: reply,
-        meta: {},
+        meta: { mode, is_study: isStudy, offtopic_category: offTopicCategory || null },
       })
 
     if (replyError) throw replyError
 
-    return NextResponse.json({ ok: true, reply })
+    return NextResponse.json({ ok: true, reply, isStudy, mode })
   } catch (err) {
     if (err instanceof Error && err.message === 'UNAUTHORIZED') {
       return NextResponse.json({ ok: false, error: '인증이 필요합니다.' }, { status: 401 })

@@ -42,6 +42,8 @@ interface Summary {
   homeworkRate: number
   chatCount: number
   correctRate: number
+  focusStats?: { leftTabCount: number; firstUse: string | null; lastUse: string | null; todayEventCount: number }
+  currentMode?: string
 }
 
 interface ChartPoint {
@@ -343,6 +345,44 @@ export default function TeacherPage() {
                           <div className="text-3xl font-bold text-purple-600 mb-1">{summary.chatCount}</div>
                           <div className="text-xs text-gray-500">주간 질문 수</div>
                         </div>
+                      </div>
+
+                      {/* Focus stats */}
+                      <div className="card">
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="font-semibold text-gray-800">오늘 집중 현황</h3>
+                          <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${summary.currentMode === 'studying' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                            {summary.currentMode === 'studying' ? '공부 모드' : '휴식 모드'}
+                          </span>
+                        </div>
+                        {summary.focusStats ? (
+                          <div className="grid grid-cols-3 gap-3">
+                            <div className="text-center">
+                              <div className={`text-2xl font-bold ${summary.focusStats.leftTabCount >= 5 ? 'text-red-500' : summary.focusStats.leftTabCount >= 2 ? 'text-orange-500' : 'text-gray-700'}`}>
+                                {summary.focusStats.leftTabCount}
+                              </div>
+                              <div className="text-xs text-gray-500 mt-0.5">탭 이탈 횟수</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-sm font-semibold text-gray-700">
+                                {summary.focusStats.firstUse
+                                  ? new Date(summary.focusStats.firstUse).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+                                  : '-'}
+                              </div>
+                              <div className="text-xs text-gray-500 mt-0.5">첫 접속</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-sm font-semibold text-gray-700">
+                                {summary.focusStats.lastUse
+                                  ? new Date(summary.focusStats.lastUse).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+                                  : '-'}
+                              </div>
+                              <div className="text-xs text-gray-500 mt-0.5">마지막 활동</div>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-400">오늘 접속 기록이 없습니다.</p>
+                        )}
                       </div>
                       <div className="card">
                         <h3 className="font-semibold text-gray-800 mb-3">취약 개념 (최근 30일)</h3>

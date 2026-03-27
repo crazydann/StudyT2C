@@ -251,9 +251,10 @@ export default function TeacherPage() {
         </div>
       </header>
 
-      <div className="flex-1 max-w-7xl mx-auto w-full px-4 py-6 flex gap-6">
-        {/* Sidebar */}
-        <aside className="w-56 flex-shrink-0">
+      <div className="flex-1 max-w-7xl mx-auto w-full px-4 py-6 md:flex md:gap-6">
+
+        {/* Desktop sidebar (always visible on md+) */}
+        <aside className="hidden md:block w-56 flex-shrink-0">
           <div className="card p-4">
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
               담당 학생 ({students.length}명)
@@ -285,8 +286,41 @@ export default function TeacherPage() {
           </div>
         </aside>
 
+        {/* Mobile: student picker (shown only when no student selected) */}
+        {!selectedStudent && (
+          <div className="md:hidden">
+            <div className="card p-4">
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                담당 학생 선택
+              </h2>
+              {students.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-4">연결된 학생이 없습니다.</p>
+              ) : (
+                <div className="space-y-2">
+                  {students.map((student) => (
+                    <button
+                      key={student.id}
+                      onClick={() => setSelectedStudent(student)}
+                      className="w-full text-left px-4 py-3 rounded-xl bg-gray-50 hover:bg-primary-50 hover:text-primary-700 transition-colors flex items-center gap-3"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-base">
+                        {student.handle[0].toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">{student.handle}</p>
+                        <p className="text-xs text-gray-400">탭하여 상세 보기</p>
+                      </div>
+                      <span className="ml-auto text-gray-400">›</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Main */}
-        <main className="flex-1 min-w-0">
+        <main className={`flex-1 min-w-0 ${!selectedStudent ? 'hidden md:block' : ''}`}>
           {!selectedStudent ? (
             <div className="card text-center py-16">
               <div className="text-5xl mb-4">👈</div>
@@ -295,6 +329,13 @@ export default function TeacherPage() {
             </div>
           ) : (
             <div className="space-y-4">
+              {/* Mobile back button */}
+              <button
+                onClick={() => setSelectedStudent(null)}
+                className="md:hidden flex items-center gap-1 text-sm text-primary-600 font-medium mb-1"
+              >
+                ‹ 학생 변경
+              </button>
               {/* Student header */}
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-lg">

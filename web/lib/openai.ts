@@ -1,8 +1,15 @@
 import OpenAI from 'openai'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+let _openai: OpenAI | null = null
+
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    _openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY || 'placeholder',
+    })
+  }
+  return _openai
+}
 
 const KOREAN_TUTOR_SYSTEM_PROMPT = `당신은 한국 중·고등학생을 위한 학습 도우미입니다. 수학, 국어, 영어, 과학, 사회 등 학습 관련 질문에만 답변하세요.
 
@@ -44,7 +51,7 @@ export async function textChat(messages: ChatMessageInput[]): Promise<string> {
     return '죄송해요! 저는 학습 관련 질문만 도와드릴 수 있어요. 수학, 국어, 영어, 과학, 사회 등 공부와 관련된 질문을 해주세요! 😊'
   }
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [systemMessage, ...messages],
     max_tokens: 1000,
@@ -69,30 +76,20 @@ export async function gradeImage(base64: string, mimeType: string): Promise<stri
   }
 ]
 
-reason_category는 오답인 경우에만 의미있으며 다음 중 하나입니다:
-"개념 미이해", "계산 실수", "문제 오독", "공식 암기 실패", "응용력 부족", "기타"`
+reason_category는 오답인 경우에만: "개념 미이해", "계산 실수", "문제 오독", "공식 암기 실패", "응용력 부족", "기타"`
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: 'gpt-4o',
     messages: [
-      {
-        role: 'system',
-        content: GRADE_SYSTEM_PROMPT,
-      },
+      { role: 'system', content: GRADE_SYSTEM_PROMPT },
       {
         role: 'user',
         content: [
           {
             type: 'image_url',
-            image_url: {
-              url: `data:${mimeType};base64,${base64}`,
-              detail: 'high',
-            },
+            image_url: { url: `data:${mimeType};base64,${base64}`, detail: 'high' },
           },
-          {
-            type: 'text',
-            text: '이 시험지를 채점하고 각 문항의 결과를 JSON으로 반환해주세요.',
-          },
+          { type: 'text', text: '이 시험지를 채점하고 각 문항의 결과를 JSON으로 반환해주세요.' },
         ],
       },
     ],
@@ -107,7 +104,7 @@ export async function gradeText(problemText: string): Promise<string> {
   const GRADE_TEXT_PROMPT = `당신은 한국 중·고등학교 채점 전문가입니다.
 주어진 문제와 답안 텍스트를 분석하여 채점 결과를 JSON 형식으로 반환하세요.
 
-반드시 다음 JSON 배열 형식으로만 응답하세요 (다른 텍스트 없이):
+반드시 다음 JSON 배열 형식으로만 응답하세요:
 [
   {
     "item_no": 1,
@@ -116,22 +113,13 @@ export async function gradeText(problemText: string): Promise<string> {
     "explanation_summary": "이 문제는 ...",
     "reason_category": "계산 실수"
   }
-]
+]`
 
-reason_category는 오답인 경우 다음 중 하나입니다:
-"개념 미이해", "계산 실수", "문제 오독", "공식 암기 실패", "응용력 부족", "기타"`
-
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [
-      {
-        role: 'system',
-        content: GRADE_TEXT_PROMPT,
-      },
-      {
-        role: 'user',
-        content: `다음 문제와 답안을 채점해주세요:\n\n${problemText}`,
-      },
+      { role: 'system', content: GRADE_TEXT_PROMPT },
+      { role: 'user', content: `다음 문제와 답안을 채점해주세요:\n\n${problemText}` },
     ],
     max_tokens: 2000,
     temperature: 0.1,

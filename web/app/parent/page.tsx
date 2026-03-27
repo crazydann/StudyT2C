@@ -60,6 +60,7 @@ export default function ParentPage() {
   const [loading, setLoading] = useState(true)
   const [students, setStudents] = useState<Student[]>([])
   const [studentData, setStudentData] = useState<Record<string, StudentData>>({})
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
   const [expandedSections, setExpandedSections] = useState<Record<string, Record<string, boolean>>>({})
   const [reportPeriod, setReportPeriod] = useState<Record<string, 'week' | 'month'>>({})
 
@@ -174,16 +175,42 @@ export default function ParentPage() {
             <p className="text-sm text-gray-400">담당 선생님께 연결 요청을 해주세요.</p>
           </div>
         ) : (
-          students.map((student) => {
+          <>
+            {/* Mobile: child tab selector (shown only on mobile when multiple children) */}
+            {students.length > 1 && (
+              <div className="md:hidden flex gap-2">
+                {students.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => setSelectedStudentId(s.id)}
+                    className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+                      (selectedStudentId ?? students[0]?.id) === s.id
+                        ? 'bg-primary-600 text-white shadow-sm'
+                        : 'bg-white border border-gray-200 text-gray-600'
+                    }`}
+                  >
+                    <span className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">
+                      {s.handle[0].toUpperCase()}
+                    </span>
+                    {s.handle}
+                  </button>
+                ))}
+              </div>
+            )}
+
+          {students.map((student) => {
             const data = studentData[student.id]
             const report = data?.report
             const hw = getHomeworkSummary(data?.homework || [])
             const period = getPeriod(student.id)
             const chartData = period === 'week' ? report?.weeklyChart : report?.monthlyChart
             const sections = expandedSections[student.id] || {}
+            // On mobile with multiple children: hide non-selected children
+            const isSelected = (selectedStudentId ?? students[0]?.id) === student.id
+            const mobileVisibility = students.length > 1 ? (isSelected ? 'block' : 'hidden md:block') : ''
 
             return (
-              <div key={student.id} className="space-y-4">
+              <div key={student.id} className={`space-y-4 ${mobileVisibility}`}>
                 {/* Student header */}
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 font-bold text-lg">
@@ -507,10 +534,11 @@ export default function ParentPage() {
                   </div>
                 )}
 
-                {students.length > 1 && <hr className="border-gray-200" />}
+                {students.length > 1 && <hr className="border-gray-200 hidden md:block" />}
               </div>
             )
-          })
+          })}
+          </>
         )}
       </main>
     </div>

@@ -121,24 +121,6 @@ export default function ParentPage() {
     } catch {}
   }, [])
 
-  useEffect(() => {
-    students.forEach((s) => {
-      if (!studentData[s.id]) loadStudentData(s.id)
-      if (!notifSettings[s.id]) loadNotifSettings(s.id)
-    })
-  }, [students, studentData, notifSettings, loadStudentData, loadNotifSettings])
-
-  function toggleSection(studentId: string, section: string) {
-    setExpandedSections((prev) => ({
-      ...prev,
-      [studentId]: { ...(prev[studentId] || {}), [section]: !prev[studentId]?.[section] },
-    }))
-  }
-
-  function getPeriod(studentId: string): 'week' | 'month' {
-    return reportPeriod[studentId] || 'week'
-  }
-
   const loadNotifSettings = useCallback(async (studentId: string) => {
     try {
       const res = await fetch(`/api/notification-settings?studentId=${studentId}`)
@@ -158,6 +140,25 @@ export default function ParentPage() {
       }
     } catch {}
   }, [])
+
+  useEffect(() => {
+    students.forEach((s) => {
+      if (!studentData[s.id]) loadStudentData(s.id)
+      if (!notifSettings[s.id]) loadNotifSettings(s.id)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [students])
+
+  function toggleSection(studentId: string, section: string) {
+    setExpandedSections((prev) => ({
+      ...prev,
+      [studentId]: { ...(prev[studentId] || {}), [section]: !prev[studentId]?.[section] },
+    }))
+  }
+
+  function getPeriod(studentId: string): 'week' | 'month' {
+    return reportPeriod[studentId] || 'week'
+  }
 
   async function saveNotifSettings(studentId: string) {
     const s = notifSettings[studentId]

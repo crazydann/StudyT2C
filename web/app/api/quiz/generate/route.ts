@@ -53,31 +53,51 @@ ${conversation}
       messages: [{ role: 'user', content: QUIZ_PROMPT }],
       max_tokens: 800,
       temperature: 0.7,
+      response_format: { type: 'json_object' },
     })
 
     const raw = response.choices[0]?.message?.content ?? '{}'
     let quizData
     try {
-      const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-      quizData = JSON.parse(cleaned)
+      // Try direct parse first (json_object mode should give clean JSON)
+      quizData = JSON.parse(raw)
     } catch {
-      return NextResponse.json({ ok: false, error: '퀴즈 생성에 실패했습니다.' }, { status: 500 })
+      // Fallback: extract JSON block from response
+      try {
+        const match = raw.match(/\{[\s\S]*\}/)
+        if (!match) throw new Error('no json')
+        quizData = JSON.parse(match[0])
+      } catch {
+        console.error('Quiz JSON parse failed. raw:', raw)
+        return NextResponse.json({ ok: false, error: '퀴즈 생성에 실패했습니다. 다시 시도해 주세요.' }, { status: 500 })
+      }
     }
 
-    const { data: saved, error } = await supabaseAdmin
-      .from('concept_review_quizzes')
-      .insert({
-        student_user_id: session.id,
-        quiz_data: quizData,
-        source_message_ids: messageIds,
-        created_at: new Date().toISOString(),
-      })
-      .select('id')
-      .single()
+    // Validate quiz structure
+    if (!quizData.question || !Array.isArray(quizData.choices) || quizData.choices.length < 2) {
+      return NextResponse.json({ ok: false, error: '퀴즈 형식이 올바르지 않습니다. 다시 시도해 주세요.' }, { status: 500 })
+    }
 
-    if (error) throw error
+    // Try to save to DB (graceful fallback if table doesn't exist)
+    let savedId = `temp_${Date.now()}`
+    try {
+      const { data: saved, error: dbError } = await supabaseAdmin
+        .from('concept_review_quizzes')
+        .insert({
+          student_user_id: session.id,
+          quiz_data: quizData,
+          source_message_ids: messageIds,
+          created_at: new Date().toISOString(),
+        })
+        .select('id')
+        .single()
+      if (!dbError && saved) savedId = saved.id
+    } catch {
+      // Table may not exist yet — still return quiz to user
+      console.warn('concept_review_quizzes table not available, returning quiz without saving')
+    }
 
-    return NextResponse.json({ ok: true, quiz: { id: saved.id, ...quizData } })
+    return NextResponse.json({ ok: true, quiz: { id: savedId, ...quizData } })
   } catch (err) {
     if (err instanceof Error && err.message === 'UNAUTHORIZED') {
       return NextResponse.json({ ok: false }, { status: 401 })

@@ -3,6 +3,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatKoreanDate, formatKoreanDateTime } from '@/lib/utils'
+import KpiCard from './KpiCard'
+import StudentGrid from './StudentGrid'
+import GrowthChart from './GrowthChart'
 
 interface Student {
   id: string
@@ -83,6 +86,21 @@ interface ClassData {
   totalCount: number; atRiskCount: number; avgCorrectRate: number; avgSubmissionRate: number; students: ClassStudent[]
 }
 
+interface KpiData {
+  totalStudents: number
+  todayActive: number
+  avgCorrectRate: number
+  submissionRate: number
+  focusScore: number
+  atRiskCount: number
+}
+
+interface WeekData {
+  label: string
+  correctRate: number | null
+  totalProblems: number
+}
+
 type Panel = 'briefing' | 'report' | 'notes' | 'grading' | 'homework'
 
 export default function TeacherPage() {
@@ -113,6 +131,12 @@ export default function TeacherPage() {
   const [gradingLoading, setGradingLoading] = useState(false)
   const [homework, setHomework] = useState<HomeworkItem[]>([])
   const [hwLoading, setHwLoading] = useState(false)
+
+  // Dashboard / KPI
+  const [kpi, setKpi] = useState<KpiData | null>(null)
+  const [kpiLoading, setKpiLoading] = useState(false)
+  const [gridView, setGridView] = useState(false)
+  const [selectedStudentGrowth, setSelectedStudentGrowth] = useState<WeekData[] | null>(null)
 
   useEffect(() => {
     async function checkAuth() {
@@ -169,6 +193,24 @@ export default function TeacherPage() {
     finally { setClassLoading(false) }
   }, [])
 
+  const loadKpi = useCallback(async () => {
+    setKpiLoading(true)
+    try {
+      const res = await fetch('/api/teacher/dashboard')
+      const data = await res.json()
+      if (data.ok) setKpi(data.kpi)
+    } catch {}
+    finally { setKpiLoading(false) }
+  }, [])
+
+  const loadStudentGrowth = useCallback(async (studentId: string) => {
+    try {
+      const res = await fetch(`/api/student/${studentId}/growth`)
+      const data = await res.json()
+      if (data.ok) setSelectedStudentGrowth(data.growth)
+    } catch {}
+  }, [])
+
   const loadNote = useCallback(async (studentId: string) => {
     try {
       const res = await fetch(`/api/student/${studentId}/notes`)
@@ -205,8 +247,11 @@ export default function TeacherPage() {
   }, [])
 
   useEffect(() => {
-    if (user) loadClassData()
-  }, [user, loadClassData])
+    if (user) {
+      loadClassData()
+      loadKpi()
+    }
+  }, [user, loadClassData, loadKpi])
 
   useEffect(() => {
     if (!selectedStudent) return
@@ -220,9 +265,11 @@ export default function TeacherPage() {
     setActivePanel('briefing')
     setShowStudyChat(false)
     setShowOffTopic(false)
+    setSelectedStudentGrowth(null)
     loadSummary(selectedStudent.id)
     loadNote(selectedStudent.id)
-  }, [selectedStudent, loadSummary, loadNote])
+    loadStudentGrowth(selectedStudent.id)
+  }, [selectedStudent, loadSummary, loadNote, loadStudentGrowth])
 
   useEffect(() => {
     if (!selectedStudent) return
@@ -293,6 +340,15 @@ export default function TeacherPage() {
         {/* Desktop sidebar (always visible on md+) */}
         <aside className="hidden md:block w-56 flex-shrink-0">
           <div className="card p-4">
+            {/* 원장 대시보드 button */}
+            <button
+              onClick={() => { setClassView(false); setSelectedStudent(null); setGridView(false) }}
+              className={`w-full text-left px-3 py-2.5 rounded-lg mb-2 transition-colors text-sm font-medium flex items-center gap-2 ${
+                !classView && !selectedStudent ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <span>🏠</span> 원장 대시보드
+            </button>
             {/* 반 요약 button */}
             <button
               onClick={() => { setClassView(true); setSelectedStudent(null) }}
@@ -466,10 +522,62 @@ export default function TeacherPage() {
           )}
 
           {!selectedStudent && !classView ? (
-            <div className="card text-center py-16">
-              <div className="text-5xl mb-4">👈</div>
-              <h3 className="text-lg font-semibold text-gray-700 mb-2">학생을 선택해주세요</h3>
-              <p className="text-sm text-gray-400">왼쪽 목록에서 학생을 선택하면 상세 정보를 볼 수 있습니다.</p>
+            <div className="space-y-6">
+              {/* KPI Cards Row */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-lg font-bold text-gray-900">🏠 원장 대시보드</h2>
+                  {kpiLoading && (
+                    <div className="animate-spin h-4 w-4 border-2 border-purple-600 border-t-transparent rounded-full" />
+                  )}
+                </div>
+                {kpi ? (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                    <KpiCard icon="👥" label="전체 학생" value={kpi.totalStudents} sub="명" color="purple" />
+                    <KpiCard icon="🟢" label="오늘 접속" value={kpi.todayActive} sub="명" color="blue" />
+                    <KpiCard icon="✅" label="평균 정답률" value={`${kpi.avgCorrectRate}%`} color="green" />
+                    <KpiCard icon="📚" label="숙제 제출률" value={`${kpi.submissionRate}%`} color="yellow" />
+                    <KpiCard icon="🎯" label="집중도" value={`${kpi.focusScore}점`} color="blue" />
+                    <KpiCard icon="⚠️" label="주의 학생" value={kpi.atRiskCount} sub="명" color="red" />
+                  </div>
+                ) : !kpiLoading ? (
+                  <div className="card text-center py-6">
+                    <p className="text-gray-400 text-sm">대시보드 데이터를 불러오지 못했습니다.</p>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* Student Grid Toggle */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-base font-semibold text-gray-800">학생 현황 그리드</h3>
+                  <button
+                    onClick={() => setGridView((v) => !v)}
+                    className="text-sm px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors"
+                  >
+                    {gridView ? '▲ 접기' : '▼ 펼치기'}
+                  </button>
+                </div>
+                {gridView && classData && (
+                  <StudentGrid
+                    students={classData.students.map((s) => ({
+                      id: s.id,
+                      handle: s.handle,
+                      correctRate: s.correctRate,
+                      riskLevel: s.riskScore >= 70 ? 'high' : s.riskScore >= 40 ? 'medium' : 'low',
+                      lastSeen: null,
+                      todayActive: s.status === 'studying',
+                    }))}
+                    onSelect={(id) => {
+                      const found = students.find((st) => st.id === id)
+                      if (found) { setSelectedStudent(found); setClassView(false) }
+                    }}
+                  />
+                )}
+                {gridView && !classData && (
+                  <p className="text-sm text-gray-400">반 데이터가 없습니다.</p>
+                )}
+              </div>
             </div>
           ) : selectedStudent ? (
             <div className="space-y-4">
@@ -507,6 +615,13 @@ export default function TeacherPage() {
                   </button>
                 ))}
               </div>
+
+              {/* ── Growth Chart (always shown when data available) ── */}
+              {selectedStudentGrowth && selectedStudentGrowth.length > 0 && (
+                <div className="card">
+                  <GrowthChart data={selectedStudentGrowth} title={`${selectedStudent.handle} 주간 성장 그래프`} />
+                </div>
+              )}
 
               {/* ── Briefing Panel ── */}
               {activePanel === 'briefing' && (

@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { formatRelativeTime, formatKoreanDate } from '@/lib/utils'
 import SnapshotPanel from './SnapshotPanel'
 import QuizPanel from './QuizPanel'
+import StreakBadge from './StreakBadge'
+import WeeklyMiniChart from './WeeklyMiniChart'
 
 interface Message {
   id: string
@@ -58,6 +60,10 @@ export default function StudentPage() {
   const [activeTab, setActiveTab] = useState<Tab>('chat')
   const [loading, setLoading] = useState(true)
   const [showFocusWarning, setShowFocusWarning] = useState(false)
+
+  // Growth & Streak
+  const [growth, setGrowth] = useState<{ label: string; correctRate: number | null; totalProblems: number }[]>([])
+  const [streak, setStreak] = useState(0)
 
   // Snapshot & Quiz
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
@@ -180,12 +186,24 @@ export default function StudentPage() {
     } catch {}
   }, [])
 
+  const loadGrowth = useCallback(async (userId: string) => {
+    try {
+      const res = await fetch(`/api/student/${userId}/growth`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.growth) setGrowth(data.growth)
+        if (typeof data.streak === 'number') setStreak(data.streak)
+      }
+    } catch {}
+  }, [])
+
   useEffect(() => {
     if (user) {
       loadMessages()
       loadGradingHistory(user.id)
       loadSnapshot()
       loadQuizzes()
+      loadGrowth(user.id)
       fetch('/api/homework')
         .then((r) => r.json())
         .then((d) => {
@@ -198,7 +216,7 @@ export default function StudentPage() {
         })
         .catch(() => {})
     }
-  }, [user, loadMessages, loadGradingHistory, loadSnapshot, loadQuizzes])
+  }, [user, loadMessages, loadGradingHistory, loadSnapshot, loadQuizzes, loadGrowth])
 
   useEffect(() => {
     if (activeTab === 'homework' && user) loadHomework()
@@ -551,7 +569,7 @@ export default function StudentPage() {
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center shadow-sm">
               <span className="text-white text-xs font-bold">T2C</span>
             </div>
             <div className="flex items-center gap-2">
@@ -584,8 +602,14 @@ export default function StudentPage() {
       <div className="hidden lg:flex max-w-7xl mx-auto px-4 py-4 gap-4 h-[calc(100vh-64px)]">
         {/* Left panel */}
         <div className="w-60 xl:w-64 flex-shrink-0 flex flex-col gap-3 overflow-y-auto">
+          <StreakBadge
+            streak={streak}
+            correctRate={snapshot?.correctRate ?? 0}
+            totalProblems={snapshot?.totalProblems ?? 0}
+          />
           <SnapshotPanel snapshot={snapshot} loading={snapshotLoading} onConceptClick={handleConceptClick} />
           <QuizPanel quizzes={quizzes} generating={generatingQuiz} onGenerate={generateQuiz} />
+          {growth.length > 0 && <WeeklyMiniChart data={growth} />}
         </div>
 
         {/* Center: Chat */}
@@ -603,6 +627,12 @@ export default function StudentPage() {
       <main className="lg:hidden max-w-4xl mx-auto px-4 py-4">
         {activeTab === 'chat' && (
           <div className="flex flex-col gap-3">
+            {/* Streak badge on mobile */}
+            <StreakBadge
+              streak={streak}
+              correctRate={snapshot?.correctRate ?? 0}
+              totalProblems={snapshot?.totalProblems ?? 0}
+            />
             {/* Compact snapshot on mobile */}
             {snapshot && snapshot.totalProblems > 0 && (
               <SnapshotPanel snapshot={snapshot} loading={snapshotLoading} onConceptClick={handleConceptClick} />

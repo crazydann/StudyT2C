@@ -33,7 +33,28 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = requireSessionFromRequest(request, ['student'])
-    const { message, studentId } = await request.json()
+
+    let message: string
+    let studentId: string | undefined
+    let imageBase64: string | undefined
+    let imageMimeType: string | undefined
+
+    const contentType = request.headers.get('content-type') || ''
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await request.formData()
+      message = (formData.get('message') as string) || ''
+      studentId = (formData.get('studentId') as string) || undefined
+      const file = formData.get('image') as File | null
+      if (file) {
+        const buffer = await file.arrayBuffer()
+        imageBase64 = Buffer.from(buffer).toString('base64')
+        imageMimeType = file.type
+      }
+    } else {
+      const body = await request.json()
+      message = body.message
+      studentId = body.studentId
+    }
 
     if (!message?.trim()) {
       return NextResponse.json({ ok: false, error: '메시지를 입력해주세요.' }, { status: 400 })
@@ -50,14 +71,14 @@ export async function POST(request: NextRequest) {
 
     const mode = studentRow?.status === 'studying' ? 'studying' : 'break'
 
-    // Save user message
+    // Save user message (store image flag in meta)
     const { error: insertError } = await supabaseAdmin
       .from('chat_messages')
       .insert({
         student_user_id: targetStudentId,
         role: 'user',
         content: message.trim(),
-        meta: { mode },
+        meta: { mode, has_image: !!imageBase64 },
       })
 
     if (insertError) throw insertError
@@ -74,8 +95,12 @@ export async function POST(request: NextRequest) {
       .reverse()
       .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
 
-    // Get AI response with mode-aware system prompt
-    const { reply, isStudy, offTopicCategory } = await textChat(historyMessages, mode)
+    // Get AI response — use vision model if image attached
+    const { reply, isStudy, offTopicCategory } = await textChat(
+      historyMessages,
+      mode,
+      imageBase64 ? { base64: imageBase64, mimeType: imageMimeType || 'image/jpeg' } : undefined,
+    )
 
     // Save assistant response with study metadata
     const { error: replyError } = await supabaseAdmin

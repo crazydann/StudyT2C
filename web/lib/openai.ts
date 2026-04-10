@@ -67,7 +67,11 @@ export interface ChatResult {
   offTopicCategory: string
 }
 
-export async function textChat(messages: ChatMessageInput[], mode: 'studying' | 'break' = 'break'): Promise<ChatResult> {
+export async function textChat(
+  messages: ChatMessageInput[],
+  mode: 'studying' | 'break' = 'break',
+  image?: { base64: string; mimeType: string },
+): Promise<ChatResult> {
   const systemPrompt = mode === 'studying' ? STUDYING_MODE_SYSTEM_PROMPT : KOREAN_TUTOR_SYSTEM_PROMPT
 
   const systemMessage: ChatMessageInput = {
@@ -77,7 +81,7 @@ export async function textChat(messages: ChatMessageInput[], mode: 'studying' | 
 
   const lastUserMessage = messages.filter((m) => m.role === 'user').pop()
 
-  if (lastUserMessage) {
+  if (lastUserMessage && !image) {
     const { offTopic, category } = detectOffTopic(lastUserMessage.content)
     if (offTopic) {
       const refusal =
@@ -86,6 +90,29 @@ export async function textChat(messages: ChatMessageInput[], mode: 'studying' | 
           : `죄송해요! 저는 학습 관련 질문만 도와드릴 수 있어요. 수학, 국어, 영어, 과학, 사회 등 공부와 관련된 질문을 해주세요! 😊`
       return { reply: refusal, isStudy: false, offTopicCategory: category }
     }
+  }
+
+  // If image attached, use vision model with multimodal content
+  if (image && lastUserMessage) {
+    const priorMessages = messages.slice(0, -1)
+    const response = await getOpenAI().chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...priorMessages.map((m) => ({ role: m.role, content: m.content })),
+        {
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: `data:${image.mimeType};base64,${image.base64}`, detail: 'high' } },
+            { type: 'text', text: lastUserMessage.content },
+          ],
+        },
+      ],
+      max_tokens: 1500,
+      temperature: 0.7,
+    })
+    const reply = response.choices[0]?.message?.content ?? '죄송합니다, 답변을 생성하지 못했습니다.'
+    return { reply, isStudy: true, offTopicCategory: '' }
   }
 
   const response = await getOpenAI().chat.completions.create({

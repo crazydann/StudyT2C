@@ -75,7 +75,10 @@ export default function StudentPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
+  const [chatImage, setChatImage] = useState<File | null>(null)
+  const [chatImagePreview, setChatImagePreview] = useState<string | null>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
+  const chatFileRef = useRef<HTMLInputElement>(null)
 
   // Grade state
   const [gradeMode, setGradeMode] = useState<'image' | 'text'>('image')
@@ -247,22 +250,38 @@ export default function StudentPage() {
 
   async function sendMessage(e: React.FormEvent) {
     e.preventDefault()
-    if (!chatInput.trim() || chatLoading) return
+    if ((!chatInput.trim() && !chatImage) || chatLoading) return
+
+    const imagePreviewSnapshot = chatImagePreview
     const userMsg: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: chatInput.trim(),
+      content: chatInput.trim() || '(이미지 첨부)',
       created_at: new Date().toISOString(),
+      meta: chatImage ? { has_image: true, image_preview: imagePreviewSnapshot } as never : undefined,
     }
     setMessages((prev) => [...prev, userMsg])
+    const sentText = chatInput.trim()
+    const sentImage = chatImage
     setChatInput('')
+    setChatImage(null)
+    setChatImagePreview(null)
     setChatLoading(true)
+
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMsg.content }),
-      })
+      let res: Response
+      if (sentImage) {
+        const formData = new FormData()
+        formData.append('message', sentText || '이 이미지에 대해 설명해줘')
+        formData.append('image', sentImage)
+        res = await fetch('/api/chat', { method: 'POST', body: formData })
+      } else {
+        res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: sentText }),
+        })
+      }
       const data = await res.json()
       if (data.ok) {
         setMessages((prev) => [...prev, {
@@ -523,7 +542,15 @@ export default function StudentPage() {
               <div className={`max-w-[85%] rounded-2xl px-3 py-2.5 text-sm whitespace-pre-wrap ${
                 msg.role === 'user' ? 'bg-primary-600 text-white rounded-br-sm' : 'bg-white text-gray-800 rounded-bl-sm shadow-sm border border-gray-100'
               }`}>
-                {msg.content}
+                {/* Show attached image if exists in meta */}
+                {(msg.meta as { has_image?: boolean; image_preview?: string } | undefined)?.image_preview && (
+                  <img
+                    src={(msg.meta as { image_preview: string }).image_preview}
+                    alt="첨부 이미지"
+                    className="max-h-40 rounded-lg mb-2 object-contain"
+                  />
+                )}
+                {msg.content !== '(이미지 첨부)' && msg.content}
                 <div className={`text-xs mt-1 ${msg.role === 'user' ? 'text-primary-200' : 'text-gray-400'}`}>
                   {formatRelativeTime(msg.created_at)}
                 </div>
@@ -548,12 +575,41 @@ export default function StudentPage() {
         <div ref={chatEndRef} />
       </div>
 
-      <form onSubmit={sendMessage} className="flex gap-2 pt-3 border-t border-gray-200">
-        <input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)}
-          placeholder="학습 관련 질문을 입력하세요..."
-          className="input-field flex-1 text-sm" disabled={chatLoading} />
-        <button type="submit" disabled={!chatInput.trim() || chatLoading} className="btn-primary px-4 text-sm">전송</button>
-      </form>
+      <div className="pt-3 border-t border-gray-200">
+        {/* Image preview */}
+        {chatImagePreview && (
+          <div className="mb-2 relative inline-block">
+            <img src={chatImagePreview} alt="첨부 이미지" className="h-20 rounded-lg object-cover border border-gray-200" />
+            <button
+              type="button"
+              onClick={() => { setChatImage(null); setChatImagePreview(null) }}
+              className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-gray-700 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600"
+            >×</button>
+          </div>
+        )}
+        <form onSubmit={sendMessage} className="flex gap-2">
+          {/* Image attach button */}
+          <button
+            type="button"
+            onClick={() => chatFileRef.current?.click()}
+            className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-xl border border-gray-200 hover:bg-gray-100 transition-colors text-gray-500"
+            title="이미지 첨부"
+          >
+            📷
+          </button>
+          <input ref={chatFileRef} type="file" accept="image/*" className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0] || null
+              setChatImage(f)
+              if (f) setChatImagePreview(URL.createObjectURL(f))
+              e.target.value = ''
+            }} />
+          <input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)}
+            placeholder={chatImage ? '이미지에 대해 질문하세요...' : '학습 관련 질문을 입력하세요...'}
+            className="input-field flex-1 text-sm" disabled={chatLoading} />
+          <button type="submit" disabled={(!chatInput.trim() && !chatImage) || chatLoading} className="btn-primary px-4 text-sm">전송</button>
+        </form>
+      </div>
     </div>
   )
 

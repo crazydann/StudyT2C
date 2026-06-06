@@ -19,10 +19,6 @@ const REASON_KO: Record<string, string> = {
   guessing: '찍음/감',
 }
 
-function isoNow() {
-  return new Date().toISOString()
-}
-
 function daysAgo(n: number) {
   const d = new Date()
   d.setDate(d.getDate() - n)
@@ -42,7 +38,6 @@ export async function GET(
     }
 
     const since30 = daysAgo(30)
-    const since14 = daysAgo(14)
     const since7 = daysAgo(7)
 
     // ── 1. Problem items (30d) ──────────────────────────────────────

@@ -7,6 +7,7 @@ import SnapshotPanel from './SnapshotPanel'
 import QuizPanel from './QuizPanel'
 import StreakBadge from './StreakBadge'
 import WeeklyMiniChart from './WeeklyMiniChart'
+import ConceptCards, { ConceptCard } from './ConceptCards'
 
 interface Message {
   id: string

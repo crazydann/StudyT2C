@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     const contentType = request.headers.get('content-type') || ''
 
     let gradedItems: GradedItem[] = []
-    let fileHash = crypto.randomUUID()
+    let fileHash: string = crypto.randomUUID()
 
     if (contentType.includes('multipart/form-data')) {
       // Image upload

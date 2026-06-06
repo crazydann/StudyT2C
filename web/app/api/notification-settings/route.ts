@@ -19,9 +19,22 @@ export async function GET(request: NextRequest) {
       .select('*')
       .eq('user_id', session.id)
       .eq('student_user_id', studentId)
-      .single()
+      .maybeSingle()
 
-    return NextResponse.json({ ok: true, settings: data || null })
+    // 알림 수신 이메일은 users.notification_email에 저장됨
+    const { data: userRow } = await supabaseAdmin
+      .from('users')
+      .select('notification_email')
+      .eq('id', session.id)
+      .maybeSingle()
+
+    const settings = data
+      ? { ...data, email: userRow?.notification_email || '' }
+      : userRow?.notification_email
+      ? { email: userRow.notification_email }
+      : null
+
+    return NextResponse.json({ ok: true, settings })
   } catch (err) {
     if (err instanceof Error && err.message === 'UNAUTHORIZED') {
       return NextResponse.json({ ok: false }, { status: 401 })
@@ -39,6 +52,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: '학생 ID가 필요합니다.' }, { status: 400 })
     }
 
+    // 토글 설정은 notification_settings에 저장 (email 컬럼 없음)
     const { error } = await supabaseAdmin
       .from('notification_settings')
       .upsert(
@@ -46,7 +60,6 @@ export async function POST(request: NextRequest) {
           user_id: session.id,
           student_user_id: studentId,
           role: session.role,
-          email: email || '',
           email_enabled: emailEnabled ?? false,
           receive_weekly_report: receiveWeeklyReport ?? false,
           receive_offtopic: receiveOfftopic ?? false,
@@ -56,6 +69,14 @@ export async function POST(request: NextRequest) {
       )
 
     if (error) throw error
+
+    // 수신 이메일은 users.notification_email에 저장
+    if (typeof email === 'string' && email.trim()) {
+      await supabaseAdmin
+        .from('users')
+        .update({ notification_email: email.trim() })
+        .eq('id', session.id)
+    }
 
     return NextResponse.json({ ok: true })
   } catch (err) {

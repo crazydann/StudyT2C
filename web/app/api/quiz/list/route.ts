@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
 
     const { data: quizzes } = await supabaseAdmin
       .from('concept_review_quizzes')
-      .select('id, quiz_data, created_at')
+      .select('id, quiz_question, options, correct_index, created_at')
       .eq('student_user_id', session.id)
       .order('created_at', { ascending: false })
       .limit(10)
@@ -19,33 +19,33 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: true, quizzes: [] })
     }
 
-    const quizIds = quizzes.map((q) => q.id)
-
-    // Get latest attempt per quiz
+    // 최근 시도 결과를 quiz_question 기준으로 매핑 (concept_review_attempts에 quiz_id 컬럼이 없음)
     const { data: attempts } = await supabaseAdmin
       .from('concept_review_attempts')
-      .select('quiz_id, is_correct, created_at')
+      .select('quiz_question, is_correct, created_at')
       .eq('student_user_id', session.id)
-      .in('quiz_id', quizIds)
       .order('created_at', { ascending: false })
 
-    const latestAttemptByQuiz: Record<string, { is_correct: boolean; created_at: string }> = {}
-    for (const attempt of attempts || []) {
-      if (!latestAttemptByQuiz[attempt.quiz_id]) {
-        latestAttemptByQuiz[attempt.quiz_id] = { is_correct: attempt.is_correct, created_at: attempt.created_at }
+    const latestAttemptByQuestion: Record<string, { is_correct: boolean }> = {}
+    for (const a of attempts || []) {
+      if (a.quiz_question && !latestAttemptByQuestion[a.quiz_question]) {
+        latestAttemptByQuestion[a.quiz_question] = { is_correct: a.is_correct }
       }
     }
 
-    const result = quizzes.map((q) => ({
-      id: q.id,
-      concept: q.quiz_data?.concept || '개념',
-      question: q.quiz_data?.question || '',
-      choices: q.quiz_data?.choices || [],
-      correct_index: q.quiz_data?.correct_index ?? 0,
-      explanation: q.quiz_data?.explanation || '',
-      created_at: q.created_at,
-      lastAttempt: latestAttemptByQuiz[q.id] || null,
-    }))
+    const result = quizzes.map((q) => {
+      const opts = (q.options || {}) as { choices?: string[]; concept?: string; explanation?: string }
+      return {
+        id: q.id,
+        concept: opts.concept || q.quiz_question?.slice(0, 20) || '개념',
+        question: q.quiz_question || '',
+        choices: Array.isArray(opts.choices) ? opts.choices : Array.isArray(q.options) ? (q.options as string[]) : [],
+        correct_index: q.correct_index ?? 0,
+        explanation: opts.explanation || '',
+        created_at: q.created_at,
+        lastAttempt: q.quiz_question ? latestAttemptByQuestion[q.quiz_question] || null : null,
+      }
+    })
 
     return NextResponse.json({ ok: true, quizzes: result })
   } catch (err) {

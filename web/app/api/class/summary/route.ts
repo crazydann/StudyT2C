@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
       .from('users')
       .select('id, handle, status')
       .in('id', studentIds)
-      .in('handle', ['david', 'joshua'])
+      .eq('role', 'student')
 
     const thirtyDaysAgo = new Date()
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)

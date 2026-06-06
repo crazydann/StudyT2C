@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
 
     const { data: quiz } = await supabaseAdmin
       .from('concept_review_quizzes')
-      .select('quiz_data, student_user_id')
+      .select('quiz_question, options, correct_index, student_user_id')
       .eq('id', quizId)
       .single()
 
@@ -23,21 +23,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: '퀴즈를 찾을 수 없습니다.' }, { status: 404 })
     }
 
-    const isCorrect = quiz.quiz_data?.correct_index === selectedChoice
+    const opts = (quiz.options || {}) as { concept?: string; explanation?: string }
+    const correctIndex = quiz.correct_index ?? 0
+    const isCorrect = correctIndex === selectedChoice
 
+    // 실제 스키마에 맞게 저장 (quiz_id 컬럼 없음 → quiz_question으로 매칭)
     await supabaseAdmin.from('concept_review_attempts').insert({
-      quiz_id: quizId,
       student_user_id: session.id,
-      selected_choice: selectedChoice,
+      source_question: opts.concept || null,
+      quiz_question: quiz.quiz_question,
+      correct_index: correctIndex,
+      user_choice_index: selectedChoice,
       is_correct: isCorrect,
-      created_at: new Date().toISOString(),
     })
 
     return NextResponse.json({
       ok: true,
       isCorrect,
-      correctIndex: quiz.quiz_data?.correct_index,
-      explanation: quiz.quiz_data?.explanation || '',
+      correctIndex,
+      explanation: opts.explanation || '',
     })
   } catch (err) {
     if (err instanceof Error && err.message === 'UNAUTHORIZED') {

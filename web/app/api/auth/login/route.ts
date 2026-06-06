@@ -16,21 +16,37 @@ export async function POST(request: NextRequest) {
     }
 
     const passwordHash = hashPassword(password)
+    const normalized = handle.trim().toLowerCase()
 
-    const { data: user, error } = await supabaseAdmin
+    // 대소문자·공백·중복 행에 견고하도록: ilike로 후보를 조회한 뒤 JS에서 정규화 비교
+    const { data: candidates, error } = await supabaseAdmin
       .from('users')
       .select('id, handle, role, status, password_hash')
-      .eq('handle', handle)
-      .single()
+      .ilike('handle', normalized)
 
-    if (error || !user) {
+    if (error) {
+      console.error('Login query error:', error)
+      return NextResponse.json(
+        { ok: false, error: '서버 오류가 발생했습니다.' },
+        { status: 500 }
+      )
+    }
+
+    // 정규화된 handle이 일치하는 행들 중 비밀번호가 맞는 행을 선택
+    const matchedByHandle = (candidates || []).filter(
+      (u) => (u.handle || '').trim().toLowerCase() === normalized
+    )
+
+    if (matchedByHandle.length === 0) {
       return NextResponse.json(
         { ok: false, error: '아이디 또는 비밀번호가 올바르지 않습니다.' },
         { status: 401 }
       )
     }
 
-    if (user.password_hash !== passwordHash) {
+    const user = matchedByHandle.find((u) => u.password_hash === passwordHash)
+
+    if (!user) {
       return NextResponse.json(
         { ok: false, error: '아이디 또는 비밀번호가 올바르지 않습니다.' },
         { status: 401 }

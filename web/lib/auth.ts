@@ -6,7 +6,7 @@ import { SessionData } from './types'
 const SALT = 'studyt2c-mvp-2025'
 const COOKIE_NAME = 'st2c_session'
 
-// 세션 서명용 비밀키: 전용 SESSION_SECRET → 서비스 키(이미 Vercel에 설정, 클라이언트 비노출) → 상수 순으로 사용
+// 세션 서명용 비밀키: SESSION_SECRET 환경변수 필수 권장 → 없으면 서비스 키 폴백 → 상수(개발 전용)
 function getSessionSecret(): string {
   return (
     process.env.SESSION_SECRET ||

@@ -45,22 +45,47 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: '입력이 올바르지 않습니다.' }, { status: 400 })
     }
 
-    const { data: item } = await supabaseAdmin
+    // fsrs_state 컬럼이 없는 환경(마이그레이션 미적용)에서도 동작하도록 graceful 처리
+    let ownerId: string | undefined
+    let prevState: unknown = null
+    const { data: item, error: selErr } = await supabaseAdmin
       .from('problem_items')
       .select('id, student_user_id, fsrs_state')
       .eq('id', problemItemId)
       .maybeSingle()
 
-    if (!item || item.student_user_id !== session.id) {
+    if (selErr) {
+      // fsrs_state 컬럼이 없을 수 있음 → 컬럼 없이 소유권만 재확인
+      const { data: basic } = await supabaseAdmin
+        .from('problem_items')
+        .select('id, student_user_id')
+        .eq('id', problemItemId)
+        .maybeSingle()
+      ownerId = basic?.student_user_id
+    } else {
+      ownerId = item?.student_user_id
+      prevState = item?.fsrs_state
+    }
+
+    if (!ownerId || ownerId !== session.id) {
       return NextResponse.json({ ok: false, error: '문항을 찾을 수 없습니다.' }, { status: 404 })
     }
 
-    const { nextReviewAt, state } = scheduleNext(item.fsrs_state, isCorrect)
+    const { nextReviewAt, state } = scheduleNext(prevState, isCorrect)
 
-    const { error } = await supabaseAdmin
+    // fsrs_state 포함 갱신 → 컬럼이 없으면 next_review_at 만이라도 갱신
+    let { error } = await supabaseAdmin
       .from('problem_items')
       .update({ next_review_at: nextReviewAt, fsrs_state: state })
       .eq('id', problemItemId)
+
+    if (error) {
+      const retry = await supabaseAdmin
+        .from('problem_items')
+        .update({ next_review_at: nextReviewAt })
+        .eq('id', problemItemId)
+      error = retry.error
+    }
 
     if (error) {
       console.error('Review update error:', error.message)

@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSessionFromRequest } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
-import { synthesizeReportInsight } from '@/lib/report'
+import { synthesizeReportInsight, type ReportInsight } from '@/lib/report'
 
 const SUBJECT_LABELS: Record<string, string> = {
   KOREAN: '국어',
@@ -291,23 +291,39 @@ export async function GET(
     }
 
     // ── 10. AI 합성 (선생님=행동지시 / 학부모·학생=안심·이해), 실패 시 위 룰베이스로 폴백 ──
+    // 채점·질문 기록이 사실상 없으면 LLM을 호출하지 않는다(없는 사실을 지어내는 환각 방지).
     const audience: 'teacher' | 'parent' = session.role === 'teacher' ? 'teacher' : 'parent'
-    const insight = await synthesizeReportInsight(
-      {
-        audience,
-        studentHandle,
-        avgCorrectRate: crPct,
-        totalQuestions: totalQ,
-        submissionRate: Math.round(submissionRate * 100),
-        streakDays,
-        offTopicTotal: offTopicItems.length,
-        weakConcepts,
-        wrongReasons,
-        timeline,
-        falseConfidence,
-      },
-      { recommendation, trendSentence, storyCard: { improved, stillWeak, nextPlan } },
-    )
+    const hasData = totalItems > 0 || totalQ > 0
+    let insight: ReportInsight
+    if (!hasData) {
+      insight = {
+        recommendation:
+          '아직 채점·질문 기록이 없어 분석할 데이터가 부족합니다. 문제 채점이나 AI 튜터 질문이 쌓이면 리포트가 자동으로 채워집니다.',
+        trendSentence: '최근 30일간 학습 활동 기록이 없습니다.',
+        storyCard: {
+          improved: '아직 분석할 학습 기록이 없어요.',
+          stillWeak: '데이터가 쌓이면 자주 틀리는 개념을 자동으로 짚어드릴게요.',
+          nextPlan: '먼저 문제 채점이나 AI 튜터 질문으로 학습을 시작해 보세요.',
+        },
+      }
+    } else {
+      insight = await synthesizeReportInsight(
+        {
+          audience,
+          studentHandle,
+          avgCorrectRate: crPct,
+          totalQuestions: totalQ,
+          submissionRate: Math.round(submissionRate * 100),
+          streakDays,
+          offTopicTotal: offTopicItems.length,
+          weakConcepts,
+          wrongReasons,
+          timeline,
+          falseConfidence,
+        },
+        { recommendation, trendSentence, storyCard: { improved, stillWeak, nextPlan } },
+      )
+    }
 
     return NextResponse.json({
       ok: true,

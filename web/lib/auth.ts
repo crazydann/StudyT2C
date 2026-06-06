@@ -34,7 +34,6 @@ function sign(payload: string): string {
   return base64url(crypto.createHmac('sha256', getSessionSecret()).update(payload).digest())
 }
 
-// 서명된 세션 토큰 생성: "<base64url(json)>.<base64url(hmac)>"
 export function encodeSession(session: SessionData): string {
   const payload = base64url(JSON.stringify(session))
   return `${payload}.${sign(payload)}`
@@ -91,4 +90,3 @@ export function requireSessionFromRequest(
   return session
 }
 
-export const COOKIE_NAME_EXPORT = COOKIE_NAME

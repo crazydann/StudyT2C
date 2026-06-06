@@ -4,7 +4,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireSessionFromRequest } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
 
-// POST /api/focus — student page sends visibility events
 export async function POST(request: NextRequest) {
   try {
     const session = requireSessionFromRequest(request, ['student'])

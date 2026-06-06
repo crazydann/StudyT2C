@@ -32,14 +32,12 @@ export async function GET(request: NextRequest) {
     const sevenDaysAgo = new Date()
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 
-    // --- Correct rate (30 days): fetch all submissions, then all items, group in JS ---
     const { data: submissions } = await supabaseAdmin
       .from('problem_submissions')
       .select('id, student_user_id')
       .in('student_user_id', studentIds)
       .gte('created_at', thirtyDaysAgo.toISOString())
 
-    // submissionId -> studentId
     const submissionToStudent: Record<string, string> = {}
     const submissionIds: string[] = []
     ;(submissions || []).forEach((s) => {
@@ -47,7 +45,6 @@ export async function GET(request: NextRequest) {
       submissionIds.push(s.id)
     })
 
-    // studentId -> all problem_items for that student's submissions
     const itemsByStudent: Record<string, { is_correct: boolean }[]> = {}
     if (submissionIds.length > 0) {
       const { data: items } = await supabaseAdmin
@@ -62,14 +59,12 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // --- Homework submission rate (14 days): all assignments, all submissions ---
     const { data: assignments } = await supabaseAdmin
       .from('homework_assignments')
       .select('id, student_user_id')
       .in('student_user_id', studentIds)
       .gte('created_at', fourteenDaysAgo.toISOString())
 
-    // assignmentId -> studentId, and studentId -> assignment count
     const assignmentToStudent: Record<string, string> = {}
     const assignmentCountByStudent: Record<string, number> = {}
     const assignmentIds: string[] = []
@@ -79,7 +74,6 @@ export async function GET(request: NextRequest) {
       assignmentIds.push(a.id)
     })
 
-    // studentId -> number of homework submissions against those assignments
     const submissionCountByStudent: Record<string, number> = {}
     if (assignmentIds.length > 0) {
       const { data: hwSubs } = await supabaseAdmin
@@ -94,7 +88,6 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // --- Off-topic count (7 days): single query, count per student in JS ---
     const { data: offTopicMsgs } = await supabaseAdmin
       .from('chat_messages')
       .select('student_user_id, meta')

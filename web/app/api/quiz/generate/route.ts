@@ -15,7 +15,6 @@ export async function POST(request: NextRequest) {
   try {
     const session = requireSessionFromRequest(request, ['student'])
 
-    // Get recent chat messages (last 20) for quiz generation
     const { data: msgs } = await supabaseAdmin
       .from('chat_messages')
       .select('role, content')

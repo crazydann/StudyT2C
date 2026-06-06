@@ -97,7 +97,6 @@ export async function textChat(
     }
   }
 
-  // If image attached, use vision model with multimodal content
   if (image && lastUserMessage) {
     const priorMessages = messages.slice(0, -1)
     const response = await getOpenAI().chat.completions.create({

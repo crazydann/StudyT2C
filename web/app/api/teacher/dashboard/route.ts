@@ -19,7 +19,6 @@ export async function GET(request: NextRequest) {
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
-    // 1. All students
     const { data: students, error: studentsError } = await supabaseAdmin
       .from('users')
       .select('id, handle')
@@ -44,7 +43,6 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // 2. Today's active students (distinct student_user_id in focus_events)
     const { data: todayFocusRaw } = await supabaseAdmin
       .from('focus_events')
       .select('student_user_id')
@@ -53,7 +51,6 @@ export async function GET(request: NextRequest) {
     const todayActiveSet = new Set((todayFocusRaw || []).map((e) => e.student_user_id))
     const todayActive = todayActiveSet.size
 
-    // 3. Avg correct rate (last 30 days) via problem_items
     const { data: recentItems } = await supabaseAdmin
       .from('problem_items')
       .select('is_correct, student_user_id')
@@ -62,7 +59,6 @@ export async function GET(request: NextRequest) {
 
     const avgCorrectRate = correctRate(recentItems)
 
-    // 4. Homework submission rate
     const { data: allAssignments } = await supabaseAdmin
       .from('homework_assignments')
       .select('id')
@@ -80,7 +76,6 @@ export async function GET(request: NextRequest) {
       submissionRate = Math.round(((hwSubs?.length || 0) / totalAssignmentSlots) * 100)
     }
 
-    // 5. Focus score: avg tab leave count per student today → invert to 0-100
     const { data: todayLeftTab } = await supabaseAdmin
       .from('focus_events')
       .select('student_user_id')
@@ -97,8 +92,6 @@ export async function GET(request: NextRequest) {
       : 0
     const focusScore = Math.round(Math.max(0, 100 - avgLeaves * 10))
 
-    // 6. At-risk students: riskScore > 60
-    // Per student: offTopicCount from chat_messages.meta where is_study=false last 7 days
     const { data: offTopicMsgs } = await supabaseAdmin
       .from('chat_messages')
       .select('student_user_id, meta')
@@ -113,10 +106,8 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Per student correct rate
     const studentCorrectMap = rateByKey(recentItems, (item) => item.student_user_id)
 
-    // Recent focus events for lastSeen
     const { data: recentFocus } = await supabaseAdmin
       .from('focus_events')
       .select('student_user_id, created_at')
@@ -136,7 +127,6 @@ export async function GET(request: NextRequest) {
       const studentCorrectRate = sc && sc.total > 0 ? sc.rate : null
       const offTopicCount = offTopicCountMap[student.id] || 0
 
-      // riskScore: weight correctRate + offTopicCount
       let riskScore = 0
       if (studentCorrectRate !== null && studentCorrectRate < 40) riskScore += 50
       else if (studentCorrectRate !== null && studentCorrectRate < 60) riskScore += 25

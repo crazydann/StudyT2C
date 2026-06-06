@@ -32,7 +32,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 정규화된 handle이 일치하는 행들 중 비밀번호가 맞는 행을 선택
     const matchedByHandle = (candidates || []).filter(
       (u) => (u.handle || '').trim().toLowerCase() === normalized
     )

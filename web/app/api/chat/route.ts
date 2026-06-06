@@ -62,7 +62,6 @@ export async function POST(request: NextRequest) {
 
     const targetStudentId = studentId || session.id
 
-    // Get student's current mode
     const { data: studentRow } = await supabaseAdmin
       .from('users')
       .select('status')
@@ -71,7 +70,6 @@ export async function POST(request: NextRequest) {
 
     const mode = studentRow?.status === 'studying' ? 'studying' : 'break'
 
-    // Save user message (store image flag in meta)
     const { error: insertError } = await supabaseAdmin
       .from('chat_messages')
       .insert({
@@ -83,7 +81,6 @@ export async function POST(request: NextRequest) {
 
     if (insertError) throw insertError
 
-    // Get recent chat history for context (last 10 messages)
     const { data: history } = await supabaseAdmin
       .from('chat_messages')
       .select('role, content')
@@ -95,14 +92,12 @@ export async function POST(request: NextRequest) {
       .reverse()
       .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
 
-    // Get AI response — use vision model if image attached
     const { reply, isStudy, offTopicCategory } = await textChat(
       historyMessages,
       mode,
       imageBase64 ? { base64: imageBase64, mimeType: imageMimeType || 'image/jpeg' } : undefined,
     )
 
-    // Save assistant response with study metadata
     const { error: replyError } = await supabaseAdmin
       .from('chat_messages')
       .insert({

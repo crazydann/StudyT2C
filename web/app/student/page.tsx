@@ -292,7 +292,6 @@ export default function StudentPage() {
     setChatLoading(true)
     // Store last image for concept card generation
     if (sentImage) setLastSentImage({ file: sentImage, question: sentText })
-
     try {
       let res: Response
       if (sentImage) {
@@ -345,7 +344,7 @@ export default function StudentPage() {
       const data = await res.json()
       if (data.ok) {
         setGradedItems(data.items)
-        loadSnapshot() // refresh snapshot after grading
+        loadSnapshot()
       } else {
         setGradeError(data.error || '채점에 실패했습니다.')
       }

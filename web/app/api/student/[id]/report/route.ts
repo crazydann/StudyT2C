@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSessionFromRequest } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
+import { synthesizeReportInsight } from '@/lib/report'
 
 const SUBJECT_LABELS: Record<string, string> = {
   KOREAN: '국어',
@@ -39,6 +40,13 @@ export async function GET(
 
     const since30 = daysAgo(30)
     const since7 = daysAgo(7)
+
+    const { data: studentRow } = await supabaseAdmin
+      .from('users')
+      .select('handle')
+      .eq('id', studentId)
+      .maybeSingle()
+    const studentHandle = studentRow?.handle || '학생'
 
     // ── 1. Problem items (30d) ──────────────────────────────────────
     const { data: problemItems } = await supabaseAdmin
@@ -80,10 +88,10 @@ export async function GET(
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([month, s]) => ({ month, score: s.total > 0 ? s.correct / s.total : 0 }))
 
-    // ── 2. Problem item feedback (wrong reasons, 30d) ──────────────
+    // ── 2. Problem item feedback (wrong reasons + 메타인지, 30d) ────
     const { data: feedbackRows } = await supabaseAdmin
       .from('problem_item_feedback')
-      .select('reason_category, understanding')
+      .select('problem_item_id, reason_category, understanding')
       .eq('student_user_id', studentId)
       .gte('created_at', since30)
       .limit(500)
@@ -101,6 +109,21 @@ export async function GET(
         label: REASON_KO[code] || code,
         count,
       }))
+
+    // 가짜 자신감: 학생이 '이해했다(understood)'고 했으나 실제로는 오답인 문항 수
+    const correctById: Record<string, boolean> = {}
+    items.forEach((it) => {
+      correctById[it.id] = it.is_correct
+    })
+    let fcTotal = 0
+    let fcCount = 0
+    ;(feedbackRows || []).forEach((r) => {
+      if (r.understanding === 'understood' && r.problem_item_id in correctById) {
+        fcTotal++
+        if (correctById[r.problem_item_id] === false) fcCount++
+      }
+    })
+    const falseConfidence = fcTotal > 0 ? { total: fcTotal, count: fcCount } : null
 
     // ── 3. Chat messages (30d) ──────────────────────────────────────
     const { data: chatRows } = await supabaseAdmin
@@ -267,6 +290,25 @@ export async function GET(
       recommendation = '이번 주에는 ' + parts.join(' ') + '.'
     }
 
+    // ── 10. AI 합성 (선생님=행동지시 / 학부모·학생=안심·이해), 실패 시 위 룰베이스로 폴백 ──
+    const audience: 'teacher' | 'parent' = session.role === 'teacher' ? 'teacher' : 'parent'
+    const insight = await synthesizeReportInsight(
+      {
+        audience,
+        studentHandle,
+        avgCorrectRate: crPct,
+        totalQuestions: totalQ,
+        submissionRate: Math.round(submissionRate * 100),
+        streakDays,
+        offTopicTotal: offTopicItems.length,
+        weakConcepts,
+        wrongReasons,
+        timeline,
+        falseConfidence,
+      },
+      { recommendation, trendSentence, storyCard: { improved, stillWeak, nextPlan } },
+    )
+
     return NextResponse.json({
       ok: true,
       report: {
@@ -290,19 +332,21 @@ export async function GET(
         // weekly/monthly charts
         weeklyChart,
         monthlyChart,
-        // story card
+        // story card (AI 합성 + 폴백)
         storyCard: {
-          improved,
-          stillWeak,
-          nextPlan,
+          improved: insight.storyCard.improved,
+          stillWeak: insight.storyCard.stillWeak,
+          nextPlan: insight.storyCard.nextPlan,
           tips: [
             '이번 상담에서 선생님께, 집에서 아이를 어떻게 도와주면 좋을지 구체적인 예시를 물어보세요.',
             '아이에게 최근에 특히 헷갈렸던 문제를 하나 골라 왜 헷갈렸는지 이야기해 보세요.',
           ],
         },
-        // trend + recommendation
-        trendSentence,
-        recommendation,
+        // trend + recommendation (AI 합성 + 폴백)
+        trendSentence: insight.trendSentence,
+        recommendation: insight.recommendation,
+        // 메타인지: 가짜 자신감 신호
+        falseConfidence,
         // weak concepts
         weakConcepts,
       },

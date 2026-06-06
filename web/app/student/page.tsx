@@ -19,12 +19,21 @@ interface Message {
 }
 
 interface GradedItem {
+  id?: string | null
   item_no: number
   is_correct: boolean
   key_concepts: string[]
   explanation_summary: string
   reason_category: string
 }
+
+const FEEDBACK_REASONS: { value: string; label: string }[] = [
+  { value: 'concept', label: '개념 부족' },
+  { value: 'calculation', label: '계산 실수' },
+  { value: 'reading', label: '문제 해석' },
+  { value: 'time', label: '시간 부족' },
+  { value: 'guessing', label: '찍음/감' },
+]
 
 interface HomeworkItem {
   id: string
@@ -53,6 +62,14 @@ interface Quiz {
   lastAttempt: { is_correct: boolean } | null
 }
 
+interface ReviewItem {
+  id: string
+  item_no: number
+  explanation_summary: string
+  key_concepts: string[]
+  reason_category: string
+}
+
 type Tab = 'chat' | 'grade' | 'homework'
 
 export default function StudentPage() {
@@ -72,6 +89,10 @@ export default function StudentPage() {
   const [snapshotLoading, setSnapshotLoading] = useState(false)
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
   const [generatingQuiz, setGeneratingQuiz] = useState(false)
+
+  // Review queue (간격 반복)
+  const [reviews, setReviews] = useState<ReviewItem[]>([])
+  const [reviewBusy, setReviewBusy] = useState<string | null>(null)
 
   // Chat state
   const [messages, setMessages] = useState<Message[]>([])
@@ -95,6 +116,8 @@ export default function StudentPage() {
   const [imageRotation, setImageRotation] = useState(0)
   const [gradeLoading, setGradeLoading] = useState(false)
   const [gradedItems, setGradedItems] = useState<GradedItem[] | null>(null)
+  const [lastSubmissionId, setLastSubmissionId] = useState<string | null>(null)
+  const [itemFeedback, setItemFeedback] = useState<Record<string, { understanding: string; reason_category: string | null; saved?: boolean }>>({})
   const [gradeError, setGradeError] = useState('')
   const [gradingHistory, setGradingHistory] = useState<{ id: string; created_at: string; stats: { total: number; correct: number; rate: number } }[]>([])
 
@@ -207,6 +230,29 @@ export default function StudentPage() {
     } catch {}
   }, [])
 
+  const loadReviews = useCallback(async () => {
+    try {
+      const res = await fetch('/api/student/review')
+      if (res.ok) {
+        const data = await res.json()
+        if (data.ok) setReviews(data.reviews || [])
+      }
+    } catch {}
+  }, [])
+
+  async function answerReview(itemId: string, isCorrect: boolean) {
+    setReviewBusy(itemId)
+    try {
+      await fetch('/api/student/review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ problemItemId: itemId, isCorrect }),
+      })
+      setReviews((prev) => prev.filter((r) => r.id !== itemId))
+    } catch {}
+    finally { setReviewBusy(null) }
+  }
+
   useEffect(() => {
     if (user) {
       loadMessages()
@@ -214,6 +260,7 @@ export default function StudentPage() {
       loadSnapshot()
       loadQuizzes()
       loadGrowth(user.id)
+      loadReviews()
       fetch('/api/homework')
         .then((r) => r.json())
         .then((d) => {
@@ -226,7 +273,7 @@ export default function StudentPage() {
         })
         .catch(() => {})
     }
-  }, [user, loadMessages, loadGradingHistory, loadSnapshot, loadQuizzes, loadGrowth])
+  }, [user, loadMessages, loadGradingHistory, loadSnapshot, loadQuizzes, loadGrowth, loadReviews])
 
   useEffect(() => {
     if (activeTab === 'homework' && user) loadHomework()
@@ -344,7 +391,10 @@ export default function StudentPage() {
       const data = await res.json()
       if (data.ok) {
         setGradedItems(data.items)
+        setLastSubmissionId(data.submission_id || null)
+        setItemFeedback({})
         loadSnapshot()
+        loadReviews()
       } else {
         setGradeError(data.error || '채점에 실패했습니다.')
       }
@@ -353,6 +403,18 @@ export default function StudentPage() {
     } finally {
       setGradeLoading(false)
     }
+  }
+
+  async function saveItemFeedback(itemId: string, understanding: string, reasonCategory: string | null) {
+    setItemFeedback((prev) => ({ ...prev, [itemId]: { understanding, reason_category: reasonCategory } }))
+    try {
+      await fetch('/api/student/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ problemItemId: itemId, submissionId: lastSubmissionId, understanding, reasonCategory }),
+      })
+      setItemFeedback((prev) => ({ ...prev, [itemId]: { understanding, reason_category: reasonCategory, saved: true } }))
+    } catch {}
   }
 
   async function submitNonReason(assignmentId: string) {
@@ -485,6 +547,37 @@ export default function StudentPage() {
                     {item.key_concepts.map((c) => (
                       <span key={c} className="text-xs bg-white px-1.5 py-0.5 rounded-full text-gray-600 border border-gray-200">{c}</span>
                     ))}
+                  </div>
+                )}
+                {/* ③ 메타인지 자기평가 (오답 문항만) */}
+                {!item.is_correct && item.id && (
+                  <div className="mt-2 pt-2 border-t border-red-100">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-xs font-medium text-gray-600">이 문제, 스스로 어땠나요? (10초)</p>
+                      {itemFeedback[item.id]?.saved && <span className="text-xs text-green-600">저장됨 ✓</span>}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {(['understood', 'confused'] as const).map((u) => {
+                        const cur = itemFeedback[item.id!]?.understanding
+                        const active = cur === u
+                        return (
+                          <button key={u} type="button"
+                            onClick={() => saveItemFeedback(item.id!, u, itemFeedback[item.id!]?.reason_category ?? null)}
+                            className={`text-xs px-2 py-1 rounded-lg border transition-colors ${active ? (u === 'understood' ? 'bg-green-600 text-white border-green-600' : 'bg-orange-500 text-white border-orange-500') : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
+                            {u === 'understood' ? '이해됨' : '헷갈림'}
+                          </button>
+                        )
+                      })}
+                      <select
+                        value={itemFeedback[item.id]?.reason_category ?? ''}
+                        onChange={(e) => saveItemFeedback(item.id!, itemFeedback[item.id!]?.understanding ?? 'confused', e.target.value || null)}
+                        className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-gray-600">
+                        <option value="">틀린 원인 선택</option>
+                        {FEEDBACK_REASONS.map((r) => (
+                          <option key={r.value} value={r.value}>{r.label}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 )}
               </div>
@@ -676,6 +769,37 @@ export default function StudentPage() {
     </div>
   )
 
+  // ── Review queue (간격 반복) ──
+  const ReviewContent = reviews.length > 0 ? (
+    <div className="bg-white rounded-xl border border-indigo-100 shadow-sm p-4">
+      <div className="flex items-center justify-between mb-1">
+        <h2 className="text-sm font-semibold text-gray-800">📌 오늘의 복습</h2>
+        <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium">{reviews.length}개</span>
+      </div>
+      <p className="text-xs text-gray-400 mb-3">예전에 틀린 문제예요. 다시 떠올려 보고 결과를 알려주세요.</p>
+      <div className="space-y-2">
+        {reviews.map((r) => (
+          <div key={r.id} className="border border-gray-100 rounded-lg p-2.5">
+            <p className="text-xs text-gray-700 leading-relaxed">{r.explanation_summary || '복습 문항'}</p>
+            {r.key_concepts.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1">
+                {r.key_concepts.slice(0, 3).map((c) => (
+                  <span key={c} className="text-xs bg-gray-50 px-1.5 py-0.5 rounded-full text-gray-500 border border-gray-200">{c}</span>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-1.5 mt-2">
+              <button type="button" disabled={reviewBusy === r.id} onClick={() => answerReview(r.id, true)}
+                className="flex-1 text-xs py-1.5 rounded-lg bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 disabled:opacity-50">✅ 이제 알아요</button>
+              <button type="button" disabled={reviewBusy === r.id} onClick={() => answerReview(r.id, false)}
+                className="flex-1 text-xs py-1.5 rounded-lg bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 disabled:opacity-50">❌ 또 틀림</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  ) : null
+
   return (
     <div className="min-h-screen bg-gray-50">
       {showFocusWarning && (
@@ -727,6 +851,7 @@ export default function StudentPage() {
             totalProblems={snapshot?.totalProblems ?? 0}
           />
           <SnapshotPanel snapshot={snapshot} loading={snapshotLoading} onConceptClick={handleConceptClick} />
+          {ReviewContent}
           <QuizPanel quizzes={quizzes} generating={generatingQuiz} onGenerate={generateQuiz} />
           {growth.length > 0 && <WeeklyMiniChart data={growth} />}
         </div>
@@ -756,6 +881,8 @@ export default function StudentPage() {
             {snapshot && snapshot.totalProblems > 0 && (
               <SnapshotPanel snapshot={snapshot} loading={snapshotLoading} onConceptClick={handleConceptClick} />
             )}
+            {/* Review queue on mobile */}
+            {ReviewContent}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4" style={{ height: 'calc(100vh - 220px)' }}>
               {ChatContent}
             </div>

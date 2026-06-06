@@ -75,6 +75,7 @@ interface Report {
   storyCard: { improved: string; stillWeak: string; nextPlan: string; tips: string[] }
   trendSentence: string
   recommendation: string
+  falseConfidence: { total: number; count: number } | null
   weakConcepts: { name: string; count: number }[]
 }
 
@@ -737,6 +738,18 @@ export default function TeacherPage() {
                         <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">다음 수업 맞춤 보강 포인트</p>
                         <p className="text-sm text-gray-800">{report.recommendation}</p>
                       </div>
+
+                      {/* 메타인지: 가짜 자신감 신호 */}
+                      {report.falseConfidence && report.falseConfidence.count > 0 && (
+                        <div className="card border-l-4 border-l-amber-500 bg-amber-50">
+                          <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1">⚠️ 가짜 자신감 신호</p>
+                          <p className="text-sm text-gray-800">
+                            학생이 <span className="font-semibold">&apos;이해했다&apos;</span>고 표시한 문항 중{' '}
+                            <span className="font-semibold text-amber-700">{report.falseConfidence.count}건</span>이 실제로는 오답이었어요.
+                            안다고 느끼지만 실제로 틀리는 개념은 <span className="font-medium">재설명</span>이 특히 효과적입니다.
+                          </p>
+                        </div>
+                      )}
 
                       {/* Key metrics */}
                       <div className="grid grid-cols-4 gap-3">

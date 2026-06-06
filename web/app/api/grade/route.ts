@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireSessionFromRequest } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
 import { gradeImage, gradeText } from '@/lib/openai'
+import { initialReviewSchedule } from '@/lib/review'
 import crypto from 'crypto'
 import { GradedItem } from '@/lib/types'
 
@@ -85,16 +86,32 @@ export async function POST(request: NextRequest) {
       reason_category: item.reason_category || '',
     }))
 
-    const { error: itemsError } = await supabaseAdmin
+    const { data: insertedRows, error: itemsError } = await supabaseAdmin
       .from('problem_items')
       .insert(itemsToInsert)
+      .select('id, item_no, is_correct')
 
     if (itemsError) throw itemsError
+
+    const idByNo: Record<number, string> = {}
+    ;(insertedRows || []).forEach((r) => {
+      idByNo[r.item_no] = r.id
+    })
+
+    // ② 오답 문항의 최초 복습 시점 초기화 (next_review_at 컬럼이 없으면 조용히 무시)
+    const wrongIds = (insertedRows || []).filter((r) => r.is_correct === false).map((r) => r.id)
+    if (wrongIds.length > 0) {
+      const { nextReviewAt } = initialReviewSchedule()
+      await supabaseAdmin
+        .from('problem_items')
+        .update({ next_review_at: nextReviewAt })
+        .in('id', wrongIds)
+    }
 
     return NextResponse.json({
       ok: true,
       submission_id: submission.id,
-      items: gradedItems,
+      items: gradedItems.map((it) => ({ ...it, id: idByNo[it.item_no] ?? null })),
     })
   } catch (err) {
     if (err instanceof Error && err.message === 'UNAUTHORIZED') {

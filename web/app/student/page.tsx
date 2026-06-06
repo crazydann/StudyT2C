@@ -80,6 +80,11 @@ export default function StudentPage() {
   const chatEndRef = useRef<HTMLDivElement>(null)
   const chatFileRef = useRef<HTMLInputElement>(null)
 
+  // Concept cards
+  const [conceptCards, setConceptCards] = useState<Record<string, { concept: string; cards: ConceptCard[] }>>({})
+  const [loadingCardsForId, setLoadingCardsForId] = useState<string | null>(null)
+  const [lastSentImage, setLastSentImage] = useState<{ file: File; question: string } | null>(null)
+
   // Grade state
   const [gradeMode, setGradeMode] = useState<'image' | 'text'>('image')
   const [gradeText, setGradeText] = useState('')
@@ -229,6 +234,22 @@ export default function StudentPage() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  async function loadConceptCards(msgId: string) {
+    if (!lastSentImage) return
+    setLoadingCardsForId(msgId)
+    try {
+      const formData = new FormData()
+      formData.append('image', lastSentImage.file)
+      formData.append('question', lastSentImage.question)
+      const res = await fetch('/api/concept-cards', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (data.ok && data.cards) {
+        setConceptCards((prev) => ({ ...prev, [msgId]: { concept: data.concept, cards: data.cards } }))
+      }
+    } catch {}
+    finally { setLoadingCardsForId(null) }
+  }
+
   async function generateQuiz() {
     setGeneratingQuiz(true)
     try {
@@ -267,6 +288,8 @@ export default function StudentPage() {
     setChatImage(null)
     setChatImagePreview(null)
     setChatLoading(true)
+    // Store last image for concept card generation
+    if (sentImage) setLastSentImage({ file: sentImage, question: sentText })
 
     try {
       let res: Response
@@ -532,31 +555,63 @@ export default function StudentPage() {
             </p>
           </div>
         ) : (
-          messages.map((msg) => (
-            <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              {msg.role === 'assistant' && (
-                <div className="w-7 h-7 bg-primary-600 rounded-full flex items-center justify-center mr-2 flex-shrink-0 mt-1">
-                  <span className="text-white text-xs">AI</span>
+          messages.map((msg, msgIdx) => {
+            // Check if the previous user message had an image
+            const prevMsg = messages[msgIdx - 1]
+            const isAfterImage = msg.role === 'assistant' && prevMsg?.role === 'user' && !!(prevMsg.meta as { has_image?: boolean } | undefined)?.has_image
+            const cards = conceptCards[msg.id]
+            return (
+              <div key={msg.id}>
+                <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  {msg.role === 'assistant' && (
+                    <div className="w-7 h-7 bg-primary-600 rounded-full flex items-center justify-center mr-2 flex-shrink-0 mt-1">
+                      <span className="text-white text-xs">AI</span>
+                    </div>
+                  )}
+                  <div className={`max-w-[85%] rounded-2xl px-3 py-2.5 text-sm whitespace-pre-wrap ${
+                    msg.role === 'user' ? 'bg-primary-600 text-white rounded-br-sm' : 'bg-white text-gray-800 rounded-bl-sm shadow-sm border border-gray-100'
+                  }`}>
+                    {(msg.meta as { image_preview?: string } | undefined)?.image_preview && (
+                      <img src={(msg.meta as { image_preview: string }).image_preview} alt="첨부 이미지"
+                        className="max-h-40 rounded-lg mb-2 object-contain" />
+                    )}
+                    {msg.content !== '(이미지 첨부)' && msg.content}
+                    <div className={`text-xs mt-1 ${msg.role === 'user' ? 'text-primary-200' : 'text-gray-400'}`}>
+                      {formatRelativeTime(msg.created_at)}
+                    </div>
+                  </div>
                 </div>
-              )}
-              <div className={`max-w-[85%] rounded-2xl px-3 py-2.5 text-sm whitespace-pre-wrap ${
-                msg.role === 'user' ? 'bg-primary-600 text-white rounded-br-sm' : 'bg-white text-gray-800 rounded-bl-sm shadow-sm border border-gray-100'
-              }`}>
-                {/* Show attached image if exists in meta */}
-                {(msg.meta as { has_image?: boolean; image_preview?: string } | undefined)?.image_preview && (
-                  <img
-                    src={(msg.meta as { image_preview: string }).image_preview}
-                    alt="첨부 이미지"
-                    className="max-h-40 rounded-lg mb-2 object-contain"
-                  />
+
+                {/* Concept card button — shown below AI response after image message */}
+                {isAfterImage && !cards && (
+                  <div className="ml-9 mt-1.5">
+                    <button
+                      onClick={() => loadConceptCards(msg.id)}
+                      disabled={loadingCardsForId === msg.id}
+                      className="flex items-center gap-1.5 text-xs text-indigo-600 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-xl hover:bg-indigo-100 transition-colors disabled:opacity-60"
+                    >
+                      {loadingCardsForId === msg.id ? (
+                        <><span className="animate-spin inline-block w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full" />개념 카드 생성 중...</>
+                      ) : (
+                        <>📚 개념 이해 카드 보기</>
+                      )}
+                    </button>
+                  </div>
                 )}
-                {msg.content !== '(이미지 첨부)' && msg.content}
-                <div className={`text-xs mt-1 ${msg.role === 'user' ? 'text-primary-200' : 'text-gray-400'}`}>
-                  {formatRelativeTime(msg.created_at)}
-                </div>
+
+                {/* Concept cards */}
+                {isAfterImage && cards && (
+                  <div className="ml-9 mt-1.5">
+                    <ConceptCards
+                      concept={cards.concept}
+                      cards={cards.cards}
+                      onClose={() => setConceptCards((prev) => { const n = { ...prev }; delete n[msg.id]; return n })}
+                    />
+                  </div>
+                )}
               </div>
-            </div>
-          ))
+            )
+          })
         )}
         {chatLoading && (
           <div className="flex justify-start">

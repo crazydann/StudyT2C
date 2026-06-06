@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
       .from('users')
       .select('id, handle, role, status')
       .in('id', studentIds)
-      .in('handle', ['david', 'joshua'])
+      .eq('role', 'student')
 
     if (studentsError) throw studentsError
 

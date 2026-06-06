@@ -377,7 +377,7 @@ export default function TeacherPage() {
                   >
                     <div className="flex items-center gap-2">
                       <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-xs font-semibold text-gray-600">
-                        {student.handle[0].toUpperCase()}
+                        {student.handle?.[0]?.toUpperCase() ?? '?'}
                       </div>
                       <span className="text-sm">{student.handle}</span>
                     </div>
@@ -406,7 +406,7 @@ export default function TeacherPage() {
                       className="w-full text-left px-4 py-3 rounded-xl bg-gray-50 hover:bg-primary-50 hover:text-primary-700 transition-colors flex items-center gap-3"
                     >
                       <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-base">
-                        {student.handle[0].toUpperCase()}
+                        {student.handle?.[0]?.toUpperCase() ?? '?'}
                       </div>
                       <div>
                         <p className="font-medium text-gray-900">{student.handle}</p>
@@ -591,7 +591,7 @@ export default function TeacherPage() {
               {/* Student header */}
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-lg">
-                  {selectedStudent.handle[0].toUpperCase()}
+                  {selectedStudent.handle?.[0]?.toUpperCase() ?? '?'}
                 </div>
                 <div>
                   <h2 className="text-xl font-bold text-gray-900">{selectedStudent.handle}</h2>

@@ -8,6 +8,7 @@ import QuizPanel from './QuizPanel'
 import StreakBadge from './StreakBadge'
 import WeeklyMiniChart from './WeeklyMiniChart'
 import ConceptCards, { ConceptCard } from './ConceptCards'
+import { compressImage } from '@/lib/image'
 
 interface Message {
   id: string
@@ -436,11 +437,15 @@ export default function StudentPage() {
                 )}
               </div>
               <input id="file-input" type="file" accept="image/*" className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0] || null
-                  setGradeFile(f); setImageRotation(0)
-                  if (f?.type.startsWith('image/')) setGradePreviewUrl(URL.createObjectURL(f))
-                  else setGradePreviewUrl(null)
+                onChange={async (e) => {
+                  const raw = e.target.files?.[0] || null
+                  setImageRotation(0)
+                  if (!raw) { setGradeFile(null); setGradePreviewUrl(null); return }
+                  const { file, error } = await compressImage(raw)
+                  if (error) { setGradeError(error); setGradeFile(null); setGradePreviewUrl(null); return }
+                  setGradeError('')
+                  setGradeFile(file)
+                  setGradePreviewUrl(file.type.startsWith('image/') ? URL.createObjectURL(file) : null)
                 }} />
             </div>
           ) : (
@@ -654,11 +659,14 @@ export default function StudentPage() {
             📷
           </button>
           <input ref={chatFileRef} type="file" accept="image/*" className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0] || null
-              setChatImage(f)
-              if (f) setChatImagePreview(URL.createObjectURL(f))
+            onChange={async (e) => {
+              const raw = e.target.files?.[0] || null
               e.target.value = ''
+              if (!raw) return
+              const { file, error } = await compressImage(raw)
+              if (error) { alert(error); return }
+              setChatImage(file)
+              setChatImagePreview(URL.createObjectURL(file))
             }} />
           <input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)}
             placeholder={chatImage ? '이미지에 대해 질문하세요...' : '학습 관련 질문을 입력하세요...'}

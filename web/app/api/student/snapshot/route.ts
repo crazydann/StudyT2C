@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSessionFromRequest } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
+import { correctRate } from '@/lib/stats'
 
 export async function GET(request: NextRequest) {
   try {
@@ -53,15 +54,13 @@ export async function GET(request: NextRequest) {
     const strongConcepts = conceptList.filter((c) => c.rate >= 70).slice(0, 3).map((c) => c.concept)
     const weakConcepts = conceptList.filter((c) => c.rate < 60).slice(0, 3).map((c) => c.concept)
 
-    const correctRate = Math.round((items.filter((i) => i.is_correct).length / items.length) * 100)
-
     return NextResponse.json({
       ok: true,
       snapshot: {
         strongConcepts,
         weakConcepts,
         totalProblems: items.length,
-        correctRate,
+        correctRate: correctRate(items),
       },
     })
   } catch (err) {

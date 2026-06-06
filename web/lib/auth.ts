@@ -6,6 +6,15 @@ import { SessionData } from './types'
 const SALT = 'studyt2c-mvp-2025'
 const COOKIE_NAME = 'st2c_session'
 
+// 세션 서명용 비밀키: 전용 SESSION_SECRET → 서비스 키(이미 Vercel에 설정, 클라이언트 비노출) → 상수 순으로 사용
+function getSessionSecret(): string {
+  return (
+    process.env.SESSION_SECRET ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    'studyt2c-session-secret-2025'
+  )
+}
+
 export function hashPassword(plain: string): string {
   return crypto
     .createHash('sha256')
@@ -13,14 +22,43 @@ export function hashPassword(plain: string): string {
     .digest('hex')
 }
 
-export function encodeSession(session: SessionData): string {
-  return Buffer.from(JSON.stringify(session)).toString('base64')
+function base64url(input: Buffer | string): string {
+  return Buffer.from(input)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
 }
 
+function sign(payload: string): string {
+  return base64url(crypto.createHmac('sha256', getSessionSecret()).update(payload).digest())
+}
+
+// 서명된 세션 토큰 생성: "<base64url(json)>.<base64url(hmac)>"
+export function encodeSession(session: SessionData): string {
+  const payload = base64url(JSON.stringify(session))
+  return `${payload}.${sign(payload)}`
+}
+
+// 서명 검증 후에만 파싱. 서명이 없거나 위조된 쿠키는 거부(null).
 export function decodeSession(encoded: string): SessionData | null {
   try {
-    const decoded = Buffer.from(encoded, 'base64').toString('utf-8')
-    return JSON.parse(decoded) as SessionData
+    const dot = encoded.lastIndexOf('.')
+    if (dot <= 0) return null // 서명 없는(구버전/위조) 쿠키 거부 → 재로그인 유도
+
+    const payload = encoded.slice(0, dot)
+    const providedSig = encoded.slice(dot + 1)
+    const expectedSig = sign(payload)
+
+    // 타이밍 공격 방지를 위한 상수 시간 비교
+    const a = Buffer.from(providedSig)
+    const b = Buffer.from(expectedSig)
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      return null
+    }
+
+    const json = Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf-8')
+    return JSON.parse(json) as SessionData
   } catch {
     return null
   }

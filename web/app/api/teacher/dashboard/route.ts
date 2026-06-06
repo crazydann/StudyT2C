@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSessionFromRequest } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
+import { correctRate, rateByKey } from '@/lib/stats'
 
 export async function GET(request: NextRequest) {
   try {
@@ -59,11 +60,7 @@ export async function GET(request: NextRequest) {
       .in('student_user_id', studentIds)
       .gte('created_at', thirtyDaysAgo.toISOString())
 
-    let avgCorrectRate = 0
-    if (recentItems && recentItems.length > 0) {
-      const correct = recentItems.filter((i) => i.is_correct).length
-      avgCorrectRate = Math.round((correct / recentItems.length) * 100)
-    }
+    const avgCorrectRate = correctRate(recentItems)
 
     // 4. Homework submission rate
     const { data: allAssignments } = await supabaseAdmin
@@ -106,26 +103,18 @@ export async function GET(request: NextRequest) {
       .from('chat_messages')
       .select('student_user_id, meta')
       .in('student_user_id', studentIds)
-      .eq('role', 'user')
+      .eq('role', 'assistant') // is_study 메타는 assistant 응답에 저장됨
       .gte('created_at', sevenDaysAgo.toISOString())
 
     const offTopicCountMap: Record<string, number> = {}
     ;(offTopicMsgs || []).forEach((m) => {
-      const isStudy = m.meta?.is_study !== false
-      if (!isStudy) {
+      if (m.meta?.is_study === false) {
         offTopicCountMap[m.student_user_id] = (offTopicCountMap[m.student_user_id] || 0) + 1
       }
     })
 
     // Per student correct rate
-    const studentCorrectMap: Record<string, { correct: number; total: number }> = {}
-    ;(recentItems || []).forEach((item) => {
-      if (!studentCorrectMap[item.student_user_id]) {
-        studentCorrectMap[item.student_user_id] = { correct: 0, total: 0 }
-      }
-      studentCorrectMap[item.student_user_id].total++
-      if (item.is_correct) studentCorrectMap[item.student_user_id].correct++
-    })
+    const studentCorrectMap = rateByKey(recentItems, (item) => item.student_user_id)
 
     // Recent focus events for lastSeen
     const { data: recentFocus } = await supabaseAdmin
@@ -144,7 +133,7 @@ export async function GET(request: NextRequest) {
     let atRiskCount = 0
     const recentActivity = (students || []).map((student) => {
       const sc = studentCorrectMap[student.id]
-      const studentCorrectRate = sc && sc.total > 0 ? Math.round((sc.correct / sc.total) * 100) : null
+      const studentCorrectRate = sc && sc.total > 0 ? sc.rate : null
       const offTopicCount = offTopicCountMap[student.id] || 0
 
       // riskScore: weight correctRate + offTopicCount

@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSessionFromRequest } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
+import { correctRate } from '@/lib/stats'
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,67 +32,106 @@ export async function GET(request: NextRequest) {
     const sevenDaysAgo = new Date()
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 
-    const studentMetrics = await Promise.all(
-      (students || []).map(async (student) => {
-        // Correct rate (30 days)
-        const { data: submissions } = await supabaseAdmin
-          .from('problem_submissions')
-          .select('id')
-          .eq('student_user_id', student.id)
-          .gte('created_at', thirtyDaysAgo.toISOString())
+    // --- Correct rate (30 days): fetch all submissions, then all items, group in JS ---
+    const { data: submissions } = await supabaseAdmin
+      .from('problem_submissions')
+      .select('id, student_user_id')
+      .in('student_user_id', studentIds)
+      .gte('created_at', thirtyDaysAgo.toISOString())
 
-        let correctRate = 0
-        if (submissions && submissions.length > 0) {
-          const { data: items } = await supabaseAdmin
-            .from('problem_items')
-            .select('is_correct')
-            .in('submission_id', submissions.map((s) => s.id))
-          if (items && items.length > 0) {
-            correctRate = Math.round((items.filter((i) => i.is_correct).length / items.length) * 100)
-          }
-        }
+    // submissionId -> studentId
+    const submissionToStudent: Record<string, string> = {}
+    const submissionIds: string[] = []
+    ;(submissions || []).forEach((s) => {
+      submissionToStudent[s.id] = s.student_user_id
+      submissionIds.push(s.id)
+    })
 
-        // Homework submission rate (14 days)
-        const { data: assignments } = await supabaseAdmin
-          .from('homework_assignments')
-          .select('id')
-          .eq('student_user_id', student.id)
-          .gte('created_at', fourteenDaysAgo.toISOString())
-
-        let submissionRate = 0
-        if (assignments && assignments.length > 0) {
-          const { data: hwSubs } = await supabaseAdmin
-            .from('homework_submissions')
-            .select('assignment_id')
-            .eq('student_user_id', student.id)
-            .in('assignment_id', assignments.map((a) => a.id))
-          submissionRate = Math.round(((hwSubs?.length || 0) / assignments.length) * 100)
-        }
-
-        // Off-topic count (7 days)
-        const { count: offTopicCount } = await supabaseAdmin
-          .from('chat_messages')
-          .select('*', { count: 'exact', head: true })
-          .eq('student_user_id', student.id)
-          .eq('role', 'assistant')
-          .gte('created_at', sevenDaysAgo.toISOString())
-          .filter('meta->>is_study', 'eq', 'false')
-
-        const wrongRate = 100 - correctRate
-        const riskScore = Math.round(wrongRate * 0.6 + (100 - submissionRate) * 0.4)
-
-        return {
-          id: student.id,
-          handle: student.handle,
-          status: student.status,
-          correctRate,
-          submissionRate,
-          offTopicCount: offTopicCount || 0,
-          riskScore,
-          atRisk: riskScore >= 50,
-        }
+    // studentId -> all problem_items for that student's submissions
+    const itemsByStudent: Record<string, { is_correct: boolean }[]> = {}
+    if (submissionIds.length > 0) {
+      const { data: items } = await supabaseAdmin
+        .from('problem_items')
+        .select('is_correct, submission_id')
+        .in('submission_id', submissionIds)
+      ;(items || []).forEach((item) => {
+        const studentId = submissionToStudent[item.submission_id]
+        if (!studentId) return
+        if (!itemsByStudent[studentId]) itemsByStudent[studentId] = []
+        itemsByStudent[studentId].push({ is_correct: item.is_correct })
       })
-    )
+    }
+
+    // --- Homework submission rate (14 days): all assignments, all submissions ---
+    const { data: assignments } = await supabaseAdmin
+      .from('homework_assignments')
+      .select('id, student_user_id')
+      .in('student_user_id', studentIds)
+      .gte('created_at', fourteenDaysAgo.toISOString())
+
+    // assignmentId -> studentId, and studentId -> assignment count
+    const assignmentToStudent: Record<string, string> = {}
+    const assignmentCountByStudent: Record<string, number> = {}
+    const assignmentIds: string[] = []
+    ;(assignments || []).forEach((a) => {
+      assignmentToStudent[a.id] = a.student_user_id
+      assignmentCountByStudent[a.student_user_id] = (assignmentCountByStudent[a.student_user_id] || 0) + 1
+      assignmentIds.push(a.id)
+    })
+
+    // studentId -> number of homework submissions against those assignments
+    const submissionCountByStudent: Record<string, number> = {}
+    if (assignmentIds.length > 0) {
+      const { data: hwSubs } = await supabaseAdmin
+        .from('homework_submissions')
+        .select('assignment_id, student_user_id')
+        .in('student_user_id', studentIds)
+        .in('assignment_id', assignmentIds)
+      ;(hwSubs || []).forEach((sub) => {
+        const studentId = assignmentToStudent[sub.assignment_id]
+        if (!studentId) return
+        submissionCountByStudent[studentId] = (submissionCountByStudent[studentId] || 0) + 1
+      })
+    }
+
+    // --- Off-topic count (7 days): single query, count per student in JS ---
+    const { data: offTopicMsgs } = await supabaseAdmin
+      .from('chat_messages')
+      .select('student_user_id, meta')
+      .in('student_user_id', studentIds)
+      .eq('role', 'assistant')
+      .gte('created_at', sevenDaysAgo.toISOString())
+      .filter('meta->>is_study', 'eq', 'false')
+
+    const offTopicCountByStudent: Record<string, number> = {}
+    ;(offTopicMsgs || []).forEach((m) => {
+      offTopicCountByStudent[m.student_user_id] = (offTopicCountByStudent[m.student_user_id] || 0) + 1
+    })
+
+    const studentMetrics = (students || []).map((student) => {
+      const correctRateValue = correctRate(itemsByStudent[student.id])
+
+      const assignmentCount = assignmentCountByStudent[student.id] || 0
+      const submissionRate = assignmentCount > 0
+        ? Math.round(((submissionCountByStudent[student.id] || 0) / assignmentCount) * 100)
+        : 0
+
+      const offTopicCount = offTopicCountByStudent[student.id] || 0
+
+      const wrongRate = 100 - correctRateValue
+      const riskScore = Math.round(wrongRate * 0.6 + (100 - submissionRate) * 0.4)
+
+      return {
+        id: student.id,
+        handle: student.handle,
+        status: student.status,
+        correctRate: correctRateValue,
+        submissionRate,
+        offTopicCount,
+        riskScore,
+        atRisk: riskScore >= 50,
+      }
+    })
 
     const atRiskCount = studentMetrics.filter((s) => s.atRisk).length
     const avgCorrectRate =

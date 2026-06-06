@@ -102,6 +102,7 @@ export interface StudentSummary {
 
 export interface GradedItem {
   item_no: number
+  subject_code?: string
   is_correct: boolean
   key_concepts: string[]
   explanation_summary: string

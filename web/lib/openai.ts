@@ -138,14 +138,16 @@ export async function gradeImage(base64: string, mimeType: string): Promise<stri
 [
   {
     "item_no": 1,
+    "subject_code": "MATH",
     "is_correct": true,
     "key_concepts": ["개념1", "개념2"],
     "explanation_summary": "이 문제는 ...",
-    "reason_category": "계산 실수"
+    "reason_category": "calculation"
   }
 ]
 
-reason_category는 오답인 경우에만: "개념 미이해", "계산 실수", "문제 오독", "공식 암기 실패", "응용력 부족", "기타"`
+subject_code는 문제의 과목: "KOREAN"(국어), "ENGLISH"(영어), "MATH"(수학), "SCIENCE"(과학), "SOCIAL"(사회), "HISTORY"(역사), "OTHER"(기타) 중 하나.
+reason_category는 오답인 경우에만 다음 코드 중 하나: "concept"(개념 미이해), "calculation"(계산 실수), "reading"(문제 오독), "memorization"(공식·암기 실패), "application"(응용력 부족), "time"(시간 부족), "guessing"(찍음/감), "other"(기타). 정답이면 빈 문자열.`
 
   const response = await getOpenAI().chat.completions.create({
     model: 'gpt-4o',
@@ -177,12 +179,16 @@ export async function gradeText(problemText: string): Promise<string> {
 [
   {
     "item_no": 1,
+    "subject_code": "MATH",
     "is_correct": true,
     "key_concepts": ["개념1", "개념2"],
     "explanation_summary": "이 문제는 ...",
-    "reason_category": "계산 실수"
+    "reason_category": "calculation"
   }
-]`
+]
+
+subject_code는 문제의 과목: "KOREAN", "ENGLISH", "MATH", "SCIENCE", "SOCIAL", "HISTORY", "OTHER" 중 하나.
+reason_category는 오답인 경우에만 다음 코드 중 하나: "concept", "calculation", "reading", "memorization", "application", "time", "guessing", "other". 정답이면 빈 문자열.`
 
   const response = await getOpenAI().chat.completions.create({
     model: 'gpt-4o-mini',

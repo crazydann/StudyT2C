@@ -5,6 +5,7 @@ import { requireSessionFromRequest } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
 import { gradeImage, gradeText } from '@/lib/openai'
 import { initialReviewSchedule } from '@/lib/review'
+import { normalizeSubject } from '@/lib/reasons'
 import crypto from 'crypto'
 import { GradedItem } from '@/lib/types'
 
@@ -75,8 +76,8 @@ export async function POST(request: NextRequest) {
 
     if (subError) throw subError
 
-    // Insert problem items
-    const itemsToInsert = gradedItems.map((item) => ({
+    // Insert problem items (subject_code 포함, 컬럼이 없으면 제외하고 재시도)
+    const baseItems = gradedItems.map((item) => ({
       student_user_id: session.id,
       submission_id: submission.id,
       item_no: item.item_no,
@@ -85,11 +86,25 @@ export async function POST(request: NextRequest) {
       explanation_summary: item.explanation_summary || '',
       reason_category: item.reason_category || '',
     }))
+    const itemsToInsert = baseItems.map((b, i) => ({
+      ...b,
+      subject_code: normalizeSubject(gradedItems[i].subject_code) || null,
+    }))
 
-    const { data: insertedRows, error: itemsError } = await supabaseAdmin
+    let { data: insertedRows, error: itemsError } = await supabaseAdmin
       .from('problem_items')
       .insert(itemsToInsert)
       .select('id, item_no, is_correct')
+
+    if (itemsError) {
+      // subject_code 컬럼 미적용 환경 → 컬럼 없이 재시도
+      const retry = await supabaseAdmin
+        .from('problem_items')
+        .insert(baseItems)
+        .select('id, item_no, is_correct')
+      insertedRows = retry.data
+      itemsError = retry.error
+    }
 
     if (itemsError) throw itemsError
 

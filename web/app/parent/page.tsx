@@ -26,7 +26,7 @@ interface Report {
   submissionRate: number
   streakDays: number
   wrongReasons: { code: string; label: string; count: number }[]
-  subjectAchievement: { code: string; label: string; score: number; correctRate: number; questionCount: number }[]
+  subjectAchievement: { code: string; label: string; problemCount: number; correctCount: number; correctRate: number; questionCount: number }[]
   offTopicTotal: number
   offTopicByCategory: Record<string, number>
   offTopicItems: { created_at: string; content: string; category: string }[]
@@ -500,7 +500,7 @@ export default function ParentPage() {
                 )}
 
                 {/* Subject achievement */}
-                {report && (
+                {report && report.subjectAchievement.length > 0 && (
                   <div className="card">
                     <h3 className="font-semibold text-gray-800 mb-4">과목별 성취도</h3>
                     <div className="space-y-3">
@@ -508,12 +508,12 @@ export default function ParentPage() {
                         <div key={s.code}>
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-sm font-medium text-gray-700">{s.label}</span>
-                            <span className="text-sm text-gray-500">질문 {s.questionCount}건 · {s.score}점</span>
+                            <span className="text-sm text-gray-500">{s.problemCount}문제 · 정답률 {s.correctRate}%</span>
                           </div>
                           <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                             <div
-                              className="h-full bg-primary-500 rounded-full"
-                              style={{ width: `${Math.min(100, s.score * 5)}%` }}
+                              className={`h-full rounded-full ${s.correctRate >= 70 ? 'bg-green-500' : s.correctRate >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                              style={{ width: `${s.correctRate}%` }}
                             />
                           </div>
                         </div>

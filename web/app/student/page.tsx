@@ -9,6 +9,7 @@ import StreakBadge from './StreakBadge'
 import WeeklyMiniChart from './WeeklyMiniChart'
 import ConceptCards, { ConceptCard } from './ConceptCards'
 import { compressImage } from '@/lib/image'
+import { SELF_ASSESS_REASONS } from '@/lib/reasons'
 
 interface Message {
   id: string
@@ -27,13 +28,7 @@ interface GradedItem {
   reason_category: string
 }
 
-const FEEDBACK_REASONS: { value: string; label: string }[] = [
-  { value: 'concept', label: '개념 부족' },
-  { value: 'calculation', label: '계산 실수' },
-  { value: 'reading', label: '문제 해석' },
-  { value: 'time', label: '시간 부족' },
-  { value: 'guessing', label: '찍음/감' },
-]
+const FEEDBACK_REASONS = SELF_ASSESS_REASONS
 
 interface HomeworkItem {
   id: string

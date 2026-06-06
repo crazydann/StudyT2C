@@ -65,7 +65,7 @@ interface Report {
   submissionRate: number
   streakDays: number
   wrongReasons: { code: string; label: string; count: number }[]
-  subjectAchievement: { code: string; label: string; score: number; correctRate: number; questionCount: number }[]
+  subjectAchievement: { code: string; label: string; problemCount: number; correctCount: number; correctRate: number; questionCount: number }[]
   offTopicTotal: number
   offTopicByCategory: Record<string, number>
   offTopicItems: { created_at: string; content: string; category: string }[]
@@ -851,25 +851,29 @@ export default function TeacherPage() {
                         )}
                       </div>
 
-                      {/* Subject achievement */}
+                      {/* Subject achievement (과목별 실제 정답률) */}
                       <div className="card">
-                        <h3 className="font-semibold text-gray-800 mb-4">과목별 성취도 (질문 활동 기반)</h3>
-                        <div className="space-y-3">
-                          {report.subjectAchievement.map((s) => (
-                            <div key={s.code}>
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-sm font-medium text-gray-700">{s.label}</span>
-                                <span className="text-sm text-gray-500">질문 {s.questionCount}건 · 성취도 {s.score}점</span>
+                        <h3 className="font-semibold text-gray-800 mb-4">과목별 성취도</h3>
+                        {report.subjectAchievement.length === 0 ? (
+                          <p className="text-sm text-gray-400">아직 채점된 문제가 없어 과목별 성취도를 표시할 수 없습니다.</p>
+                        ) : (
+                          <div className="space-y-3">
+                            {report.subjectAchievement.map((s) => (
+                              <div key={s.code}>
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-sm font-medium text-gray-700">{s.label}</span>
+                                  <span className="text-sm text-gray-500">{s.problemCount}문제 · 정답률 {s.correctRate}%</span>
+                                </div>
+                                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full ${s.correctRate >= 70 ? 'bg-green-500' : s.correctRate >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                                    style={{ width: `${s.correctRate}%` }}
+                                  />
+                                </div>
                               </div>
-                              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-primary-500 rounded-full"
-                                  style={{ width: `${Math.min(100, s.score * 5)}%` }}
-                                />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
 
                       {/* Study chat history */}

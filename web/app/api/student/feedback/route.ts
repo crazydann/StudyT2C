@@ -3,9 +3,10 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSessionFromRequest } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
+import { REASON_LABELS } from '@/lib/reasons'
 
 const UNDERSTANDING = ['understood', 'confused']
-const REASONS = ['concept', 'calculation', 'reading', 'time', 'guessing']
+const REASONS = Object.keys(REASON_LABELS)
 
 // GET /api/student/feedback?submissionId=...  — 해당 채점의 기존 자기평가 로드
 export async function GET(request: NextRequest) {

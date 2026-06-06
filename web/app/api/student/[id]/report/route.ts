@@ -4,21 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireSessionFromRequest } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
 import { synthesizeReportInsight, type ReportInsight } from '@/lib/report'
-
-const SUBJECT_LABELS: Record<string, string> = {
-  KOREAN: '국어',
-  ENGLISH: '영어',
-  MATH: '수학',
-  SCIENCE: '과학',
-}
-
-const REASON_KO: Record<string, string> = {
-  concept: '개념 부족',
-  calculation: '계산 실수',
-  reading: '문제 해석',
-  time: '시간 부족',
-  guessing: '찍음/감',
-}
+import { SUBJECT_LABELS, normalizeSubject, normalizeReason } from '@/lib/reasons'
 
 function daysAgo(n: number) {
   const d = new Date()
@@ -96,19 +82,24 @@ export async function GET(
       .gte('created_at', since30)
       .limit(500)
 
-    const reasonCounts: Record<string, number> = {}
+    // 오답 원인: 채점 자동분류(모든 오답)를 1차 소스로, 학생 자기평가가 있으면 그 문항만 자기평가로 대체.
+    const feedbackReasonByItem: Record<string, string> = {}
     ;(feedbackRows || []).forEach((r) => {
-      if (r.reason_category) {
-        reasonCounts[r.reason_category] = (reasonCounts[r.reason_category] || 0) + 1
-      }
+      if (r.reason_category) feedbackReasonByItem[r.problem_item_id] = r.reason_category
     })
+    const reasonCounts: Record<string, number> = {}
+    const reasonLabelByCode: Record<string, string> = {}
+    items
+      .filter((i) => !i.is_correct)
+      .forEach((it) => {
+        const norm = normalizeReason(feedbackReasonByItem[it.id] || it.reason_category)
+        if (!norm) return
+        reasonCounts[norm.code] = (reasonCounts[norm.code] || 0) + 1
+        reasonLabelByCode[norm.code] = norm.label
+      })
     const wrongReasons = Object.entries(reasonCounts)
       .sort((a, b) => b[1] - a[1])
-      .map(([code, count]) => ({
-        code,
-        label: REASON_KO[code] || code,
-        count,
-      }))
+      .map(([code, count]) => ({ code, label: reasonLabelByCode[code] || code, count }))
 
     // 가짜 자신감: 학생이 '이해했다(understood)'고 했으나 실제로는 오답인 문항 수
     const correctById: Record<string, boolean> = {}
@@ -140,32 +131,50 @@ export async function GET(
       (c) => c.role === 'user' && c.created_at >= since7
     )
 
-    // Subject question counts from meta
+    // Subject question counts from chat meta (보조 지표)
     const subjectQCounts: Record<string, number> = {}
     userChats30.forEach((c) => {
       const meta = typeof c.meta === 'string' ? tryParse(c.meta) : c.meta || {}
-      const subj = (meta?.subject || '').toUpperCase()
-      if (subj && SUBJECT_LABELS[subj]) {
-        subjectQCounts[subj] = (subjectQCounts[subj] || 0) + 1
-      }
+      const subj = normalizeSubject(meta?.subject as string | undefined)
+      if (subj) subjectQCounts[subj] = (subjectQCounts[subj] || 0) + 1
     })
 
-    // Subject achievement (based on question activity only, since no subject_code in problem_items)
-    const subjectAchievement = Object.keys(SUBJECT_LABELS).map((code) => {
-      const qCnt = subjectQCounts[code] || 0
-      // score = correct_rate * 80 + min(q,20)*1 (no grading data per-subject, just questions)
-      const score = Math.min(qCnt, 20)
-      return {
+    // 과목별 성취도: problem_items.subject_code 기준 실제 정답률 (컬럼 미적용 시 빈 배열로 graceful)
+    const subjectStats: Record<string, { correct: number; total: number }> = {}
+    try {
+      const { data: subjItems, error: subjErr } = await supabaseAdmin
+        .from('problem_items')
+        .select('subject_code, is_correct')
+        .eq('student_user_id', studentId)
+        .gte('created_at', since30)
+        .limit(2000)
+      if (!subjErr) {
+        ;(subjItems || []).forEach((it) => {
+          const code = normalizeSubject(it.subject_code)
+          if (!code) return
+          if (!subjectStats[code]) subjectStats[code] = { correct: 0, total: 0 }
+          subjectStats[code].total++
+          if (it.is_correct) subjectStats[code].correct++
+        })
+      }
+    } catch {}
+
+    const subjectAchievement = Object.entries(subjectStats)
+      .map(([code, s]) => ({
         code,
         label: SUBJECT_LABELS[code],
-        score,
-        correctRate: avgCorrectRate,
-        questionCount: qCnt,
-      }
-    })
-    const avgScore = Math.round(
-      subjectAchievement.reduce((s, x) => s + x.score, 0) / subjectAchievement.length
-    )
+        problemCount: s.total,
+        correctCount: s.correct,
+        correctRate: s.total > 0 ? Math.round((s.correct / s.total) * 100) : 0,
+        questionCount: subjectQCounts[code] || 0,
+      }))
+      .sort((a, b) => b.problemCount - a.problemCount)
+    const avgScore =
+      subjectAchievement.length > 0
+        ? Math.round(
+            subjectAchievement.reduce((s, x) => s + x.correctRate, 0) / subjectAchievement.length,
+          )
+        : Math.round(avgCorrectRate * 100)
 
     // Off-topic chat (7d) - messages where meta.mode=studying and meta.is_study=false
     const offTopicItems: { created_at: string; content: string; category: string }[] = []

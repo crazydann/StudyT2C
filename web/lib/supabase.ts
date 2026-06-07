@@ -12,17 +12,9 @@ function getServiceKey(): string {
   return process.env.SUPABASE_SERVICE_ROLE_KEY || getAnonKey()
 }
 
-let _supabase: SupabaseClient | null = null
 let _supabaseAdmin: SupabaseClient | null = null
 
-export function getSupabase(): SupabaseClient {
-  if (!_supabase) {
-    _supabase = createClient(getSupabaseUrl(), getAnonKey())
-  }
-  return _supabase
-}
-
-export function getSupabaseAdmin(): SupabaseClient {
+function getSupabaseAdmin(): SupabaseClient {
   if (!_supabaseAdmin) {
     _supabaseAdmin = createClient(getSupabaseUrl(), getServiceKey())
   }
@@ -43,5 +35,4 @@ function makeLazyProxy(getter: () => SupabaseClient): SupabaseClient {
   })
 }
 
-export const supabase = makeLazyProxy(getSupabase)
 export const supabaseAdmin = makeLazyProxy(getSupabaseAdmin)

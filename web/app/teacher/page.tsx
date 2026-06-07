@@ -65,7 +65,7 @@ interface Report {
   submissionRate: number
   streakDays: number
   wrongReasons: { code: string; label: string; count: number }[]
-  subjectAchievement: { code: string; label: string; problemCount: number; correctCount: number; correctRate: number; questionCount: number }[]
+  subjectAchievement: { code: string; label: string; problemCount: number; correctCount: number; correctRate: number }[]
   offTopicTotal: number
   offTopicByCategory: Record<string, number>
   offTopicItems: { created_at: string; content: string; category: string }[]

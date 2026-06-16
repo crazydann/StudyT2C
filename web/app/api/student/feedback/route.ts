@@ -53,6 +53,17 @@ export async function POST(request: NextRequest) {
     }
     const reason = REASONS.includes(reasonCategory) ? reasonCategory : null
 
+    // Verify this problem item belongs to the calling student
+    const { data: item } = await supabaseAdmin
+      .from('problem_items')
+      .select('student_user_id')
+      .eq('id', problemItemId)
+      .maybeSingle()
+
+    if (!item || item.student_user_id !== session.id) {
+      return NextResponse.json({ ok: false, error: '문항을 찾을 수 없습니다.' }, { status: 404 })
+    }
+
     const { error } = await supabaseAdmin.from('problem_item_feedback').upsert(
       {
         student_user_id: session.id,

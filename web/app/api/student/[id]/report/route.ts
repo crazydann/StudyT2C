@@ -24,6 +24,21 @@ export async function GET(
       return NextResponse.json({ ok: false, error: '권한이 없습니다.' }, { status: 403 })
     }
 
+    // Parent/teacher must have a verified link to this student
+    if (session.role === 'parent' || session.role === 'teacher') {
+      const linkTable = session.role === 'teacher' ? 'teacher_student_links' : 'parent_student_links'
+      const ownerCol = session.role === 'teacher' ? 'teacher_user_id' : 'parent_user_id'
+      const { data: link } = await supabaseAdmin
+        .from(linkTable)
+        .select('student_user_id')
+        .eq(ownerCol, session.id)
+        .eq('student_user_id', studentId)
+        .maybeSingle()
+      if (!link) {
+        return NextResponse.json({ ok: false, error: '권한이 없습니다.' }, { status: 403 })
+      }
+    }
+
     const since30 = daysAgo(30)
     const since7 = daysAgo(7)
 

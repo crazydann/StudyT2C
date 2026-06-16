@@ -9,7 +9,12 @@ function getAnonKey(): string {
 }
 
 function getServiceKey(): string {
-  return process.env.SUPABASE_SERVICE_ROLE_KEY || getAnonKey()
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!key) {
+    if (process.env.NODE_ENV === 'production') throw new Error('SUPABASE_SERVICE_ROLE_KEY is required')
+    return getAnonKey()
+  }
+  return key
 }
 
 let _supabaseAdmin: SupabaseClient | null = null

@@ -6,8 +6,14 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { gradeImage, gradeText } from '@/lib/openai'
 import { initialReviewSchedule } from '@/lib/review'
 import { normalizeSubject } from '@/lib/reasons'
+import { checkRateLimit } from '@/lib/ratelimit'
+import { validateImageUpload } from '@/lib/upload'
 import crypto from 'crypto'
 import { GradedItem } from '@/lib/types'
+
+// 5 grading requests per hour per student
+const GRADE_RATE_LIMIT = { max: 5, windowMs: 60 * 60 * 1000 }
+const MAX_TEXT_LENGTH = 5000
 
 function parseGradedItems(raw: string): GradedItem[] {
   try {
@@ -23,6 +29,11 @@ function parseGradedItems(raw: string): GradedItem[] {
 export async function POST(request: NextRequest) {
   try {
     const session = requireSessionFromRequest(request, ['student'])
+
+    if (!checkRateLimit(`grade:${session.id}`, GRADE_RATE_LIMIT.max, GRADE_RATE_LIMIT.windowMs)) {
+      return NextResponse.json({ ok: false, error: '채점 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' }, { status: 429 })
+    }
+
     const contentType = request.headers.get('content-type') || ''
 
     let gradedItems: GradedItem[] = []
@@ -38,6 +49,10 @@ export async function POST(request: NextRequest) {
       }
 
       const buffer = Buffer.from(await file.arrayBuffer())
+      const validationError = validateImageUpload(file, buffer)
+      if (validationError) {
+        return NextResponse.json({ ok: false, error: validationError }, { status: 400 })
+      }
       const base64 = buffer.toString('base64')
       const mimeType = file.type || 'image/jpeg'
 
@@ -53,6 +68,9 @@ export async function POST(request: NextRequest) {
 
       if (!text?.trim()) {
         return NextResponse.json({ ok: false, error: '문제 텍스트를 입력해주세요.' }, { status: 400 })
+      }
+      if (text.trim().length > MAX_TEXT_LENGTH) {
+        return NextResponse.json({ ok: false, error: `텍스트가 너무 깁니다 (최대 ${MAX_TEXT_LENGTH.toLocaleString()}자).` }, { status: 400 })
       }
 
       fileHash = crypto.createHash('sha256').update(text).digest('hex')

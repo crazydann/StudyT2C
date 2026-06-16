@@ -2,7 +2,12 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSessionFromRequest } from '@/lib/auth'
+import { checkRateLimit } from '@/lib/ratelimit'
+import { validateImageUpload } from '@/lib/upload'
 import OpenAI from 'openai'
+
+// 10 concept-card requests per hour per student
+const CARDS_RATE_LIMIT = { max: 10, windowMs: 60 * 60 * 1000 }
 
 let _openai: OpenAI | null = null
 function getOpenAI() {
@@ -52,7 +57,11 @@ const CARD_PROMPT = `당신은 한국 중·고등학생을 위한 학습 개념 
 
 export async function POST(request: NextRequest) {
   try {
-    requireSessionFromRequest(request, ['student'])
+    const session = requireSessionFromRequest(request, ['student'])
+
+    if (!checkRateLimit(`cards:${session.id}`, CARDS_RATE_LIMIT.max, CARDS_RATE_LIMIT.windowMs)) {
+      return NextResponse.json({ ok: false, error: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' }, { status: 429 })
+    }
 
     const contentType = request.headers.get('content-type') || ''
     let imageBase64: string | undefined
@@ -64,8 +73,12 @@ export async function POST(request: NextRequest) {
       question = (formData.get('question') as string) || ''
       const file = formData.get('image') as File | null
       if (file) {
-        const buffer = await file.arrayBuffer()
-        imageBase64 = Buffer.from(buffer).toString('base64')
+        const buffer = Buffer.from(await file.arrayBuffer())
+        const validationError = validateImageUpload(file, buffer)
+        if (validationError) {
+          return NextResponse.json({ ok: false, error: validationError }, { status: 400 })
+        }
+        imageBase64 = buffer.toString('base64')
         imageMimeType = file.type
       }
     } else {

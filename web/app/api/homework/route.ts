@@ -6,11 +6,34 @@ import { supabaseAdmin } from '@/lib/supabase'
 
 export async function GET(request: NextRequest) {
   try {
-    const session = requireSessionFromRequest(request)
+    const session = requireSessionFromRequest(request, ['student', 'teacher', 'parent'])
     const { searchParams } = new URL(request.url)
-    const studentId = searchParams.get('studentId') || session.id
+    const requestedId = searchParams.get('studentId')
 
-    // Get homework assignments for the student
+    // Students can only read their own homework
+    if (session.role === 'student') {
+      if (requestedId && requestedId !== session.id) {
+        return NextResponse.json({ ok: false, error: '권한이 없습니다.' }, { status: 403 })
+      }
+    }
+
+    const studentId = session.role === 'student' ? session.id : (requestedId || session.id)
+
+    // Teacher/parent must have a verified link to the requested student
+    if ((session.role === 'teacher' || session.role === 'parent') && requestedId) {
+      const linkTable = session.role === 'teacher' ? 'teacher_student_links' : 'parent_student_links'
+      const ownerCol = session.role === 'teacher' ? 'teacher_user_id' : 'parent_user_id'
+      const { data: link } = await supabaseAdmin
+        .from(linkTable)
+        .select('student_user_id')
+        .eq(ownerCol, session.id)
+        .eq('student_user_id', studentId)
+        .maybeSingle()
+      if (!link) {
+        return NextResponse.json({ ok: false, error: '권한이 없습니다.' }, { status: 403 })
+      }
+    }
+
     const { data: assignments, error: assignError } = await supabaseAdmin
       .from('homework_assignments')
       .select('*')
@@ -25,14 +48,12 @@ export async function GET(request: NextRequest) {
 
     const assignmentIds = assignments.map((a) => a.id)
 
-    // Get submissions
     const { data: submissions } = await supabaseAdmin
       .from('homework_submissions')
       .select('*')
       .eq('student_user_id', studentId)
       .in('assignment_id', assignmentIds)
 
-    // Get non-submit reasons
     const { data: nonSubmitReasons } = await supabaseAdmin
       .from('homework_non_submit_reasons')
       .select('*')
@@ -53,6 +74,9 @@ export async function GET(request: NextRequest) {
     if (err instanceof Error && err.message === 'UNAUTHORIZED') {
       return NextResponse.json({ ok: false, error: '인증이 필요합니다.' }, { status: 401 })
     }
+    if (err instanceof Error && err.message === 'FORBIDDEN') {
+      return NextResponse.json({ ok: false, error: '권한이 없습니다.' }, { status: 403 })
+    }
     console.error('Homework GET error:', err)
     return NextResponse.json({ ok: false, error: '서버 오류가 발생했습니다.' }, { status: 500 })
   }
@@ -68,15 +92,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: '과제 ID가 필요합니다.' }, { status: 400 })
     }
 
+    // Verify this assignment belongs to the calling student
+    const { data: assignment } = await supabaseAdmin
+      .from('homework_assignments')
+      .select('student_user_id')
+      .eq('id', assignment_id)
+      .maybeSingle()
+
+    if (!assignment || assignment.student_user_id !== session.id) {
+      return NextResponse.json({ ok: false, error: '과제를 찾을 수 없습니다.' }, { status: 404 })
+    }
+
     if (reason_code) {
-      // Submit non-submit reason
+      const VALID_REASONS = ['forgot', 'time', 'hard']
+      if (!VALID_REASONS.includes(reason_code)) {
+        return NextResponse.json({ ok: false, error: '잘못된 미제출 사유입니다.' }, { status: 400 })
+      }
       const { error } = await supabaseAdmin
         .from('homework_non_submit_reasons')
-        .upsert({
-          student_user_id: session.id,
-          assignment_id,
-          reason_code,
-        })
+        .upsert({ student_user_id: session.id, assignment_id, reason_code })
 
       if (error) throw error
     }

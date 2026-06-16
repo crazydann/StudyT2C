@@ -112,24 +112,26 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Hint */}
-          <div className="mt-6 pt-6 border-t border-gray-100">
-            <p className="text-xs text-gray-400 text-center mb-3">테스트 계정</p>
-            <div className="grid grid-cols-3 gap-2 text-xs text-center">
-              <div className="bg-blue-50 rounded-lg p-2">
-                <div className="font-semibold text-blue-700">학생</div>
-                <div className="text-gray-500 mt-0.5">david, joshua</div>
-              </div>
-              <div className="bg-green-50 rounded-lg p-2">
-                <div className="font-semibold text-green-700">선생님</div>
-                <div className="text-gray-500 mt-0.5">teacher 계정</div>
-              </div>
-              <div className="bg-purple-50 rounded-lg p-2">
-                <div className="font-semibold text-purple-700">학부모</div>
-                <div className="text-gray-500 mt-0.5">parent 계정</div>
+          {/* Test account hint — development only */}
+          {process.env.NODE_ENV !== 'production' && (
+            <div className="mt-6 pt-6 border-t border-gray-100">
+              <p className="text-xs text-gray-400 text-center mb-3">테스트 계정 (개발 환경)</p>
+              <div className="grid grid-cols-3 gap-2 text-xs text-center">
+                <div className="bg-blue-50 rounded-lg p-2">
+                  <div className="font-semibold text-blue-700">학생</div>
+                  <div className="text-gray-500 mt-0.5">david, joshua</div>
+                </div>
+                <div className="bg-green-50 rounded-lg p-2">
+                  <div className="font-semibold text-green-700">선생님</div>
+                  <div className="text-gray-500 mt-0.5">teacher 계정</div>
+                </div>
+                <div className="bg-purple-50 rounded-lg p-2">
+                  <div className="font-semibold text-purple-700">학부모</div>
+                  <div className="text-gray-500 mt-0.5">parent 계정</div>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-6">

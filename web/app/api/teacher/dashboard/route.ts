@@ -7,7 +7,7 @@ import { correctRate, rateByKey } from '@/lib/stats'
 
 export async function GET(request: NextRequest) {
   try {
-    requireSessionFromRequest(request, ['teacher'])
+    const session = requireSessionFromRequest(request, ['teacher'])
 
     // Korea time offset: UTC+9 — compute today's start in UTC
     const now = new Date()
@@ -19,9 +19,27 @@ export async function GET(request: NextRequest) {
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
+    // Scope to students linked to this teacher only
+    const { data: links, error: linksError } = await supabaseAdmin
+      .from('teacher_student_links')
+      .select('student_user_id')
+      .eq('teacher_user_id', session.id)
+
+    if (linksError) throw linksError
+    const linkedStudentIds = (links || []).map((l) => l.student_user_id)
+
+    if (linkedStudentIds.length === 0) {
+      return NextResponse.json({
+        ok: true,
+        kpi: { totalStudents: 0, todayActive: 0, avgCorrectRate: 0, submissionRate: 0, focusScore: 100, atRiskCount: 0 },
+        recentActivity: [],
+      })
+    }
+
     const { data: students, error: studentsError } = await supabaseAdmin
       .from('users')
       .select('id, handle')
+      .in('id', linkedStudentIds)
       .eq('role', 'student')
 
     if (studentsError) throw studentsError

@@ -30,3 +30,20 @@ export function validateImageUpload(file: File, buf: Buffer): string | null {
   if (!isValidImageMagic(buf)) return '유효한 이미지 파일이 아닙니다.'
   return null
 }
+
+/**
+ * Validates a base64-encoded image (JSON body path): size + magic bytes.
+ * Returns an error string if invalid, null if OK.
+ */
+export function validateImageBase64(base64: string): string | null {
+  const approxBytes = Math.floor((base64.length * 3) / 4)
+  if (approxBytes > MAX_UPLOAD_BYTES) return '이미지는 5MB 이하만 업로드할 수 있습니다.'
+  let buf: Buffer
+  try {
+    buf = Buffer.from(base64, 'base64')
+  } catch {
+    return '유효한 이미지 파일이 아닙니다.'
+  }
+  if (!isValidImageMagic(buf)) return '유효한 이미지 파일이 아닙니다.'
+  return null
+}

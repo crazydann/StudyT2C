@@ -113,17 +113,18 @@ export async function GET(
       .gte('created_at', thirtyDaysAgo.toISOString())
 
     const activeDays = new Set<string>()
+    const kstDay = (ts: string) => new Date(new Date(ts).getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
     ;(chatDays || []).forEach((m) => {
-      activeDays.add(new Date(m.created_at).toISOString().slice(0, 10))
+      activeDays.add(kstDay(m.created_at))
     })
     ;(submissionDays || []).forEach((s) => {
-      activeDays.add(new Date(s.created_at).toISOString().slice(0, 10))
+      activeDays.add(kstDay(s.created_at))
     })
 
     let streak = 0
     for (let i = 0; i < 30; i++) {
       const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000)
-      const dateStr = d.toISOString().slice(0, 10)
+      const dateStr = kstDay(d.toISOString())
       if (activeDays.has(dateStr)) {
         streak++
       } else {

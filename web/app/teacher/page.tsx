@@ -81,7 +81,7 @@ interface Report {
 
 interface ClassStudent {
   id: string; handle: string; status: string
-  correctRate: number; submissionRate: number; offTopicCount: number; riskScore: number; atRisk: boolean
+  correctRate: number | null; submissionRate: number; offTopicCount: number; riskScore: number; atRisk: boolean
 }
 interface ClassData {
   totalCount: number; atRiskCount: number; avgCorrectRate: number; avgSubmissionRate: number; students: ClassStudent[]
@@ -468,7 +468,7 @@ export default function TeacherPage() {
                               {s.handle}
                             </button>
                             <div className="flex gap-3 text-xs text-gray-600">
-                              <span>정답률 {s.correctRate}%</span>
+                              <span>정답률 {s.correctRate ?? 0}%</span>
                               <span>제출률 {s.submissionRate}%</span>
                               <span className="font-semibold text-red-600">위험도 {s.riskScore}</span>
                             </div>
@@ -506,7 +506,7 @@ export default function TeacherPage() {
                                 {s.status === 'studying' ? '공부' : '휴식'}
                               </span>
                             </td>
-                            <td className={`py-2 pr-4 text-right font-medium ${s.correctRate >= 70 ? 'text-green-600' : s.correctRate >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>{s.correctRate}%</td>
+                            <td className={`py-2 pr-4 text-right font-medium ${s.correctRate === null ? 'text-gray-400' : s.correctRate >= 70 ? 'text-green-600' : s.correctRate >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>{s.correctRate === null ? '데이터 없음' : `${s.correctRate}%`}</td>
                             <td className={`py-2 pr-4 text-right ${s.submissionRate >= 70 ? 'text-green-600' : 'text-orange-500'}`}>{s.submissionRate}%</td>
                             <td className="py-2 pr-4 text-right text-gray-600">{s.offTopicCount}건</td>
                             <td className={`py-2 text-right font-semibold ${s.riskScore >= 70 ? 'text-red-600' : s.riskScore >= 50 ? 'text-orange-500' : 'text-green-600'}`}>{s.riskScore}</td>

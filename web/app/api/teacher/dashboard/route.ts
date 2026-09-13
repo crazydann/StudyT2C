@@ -88,10 +88,12 @@ export async function GET(request: NextRequest) {
       const assignmentIds = (allAssignments || []).map((a) => a.id)
       const { data: hwSubs } = await supabaseAdmin
         .from('homework_submissions')
-        .select('id')
+        .select('assignment_id')
         .in('assignment_id', assignmentIds)
 
-      submissionRate = Math.round(((hwSubs?.length || 0) / totalAssignmentSlots) * 100)
+      // 과제당 중복 제출을 1건으로 집계 (제출률 100% 초과 방지)
+      const submittedSlots = new Set((hwSubs || []).map((s) => s.assignment_id)).size
+      submissionRate = Math.round((submittedSlots / totalAssignmentSlots) * 100)
     }
 
     const { data: todayLeftTab } = await supabaseAdmin
@@ -119,7 +121,8 @@ export async function GET(request: NextRequest) {
 
     const offTopicCountMap: Record<string, number> = {}
     ;(offTopicMsgs || []).forEach((m) => {
-      if (m.meta?.is_study === false) {
+      // '공부 시간(studying)'에 나온 공부 외 질문만 집계 — 리포트/반 요약과 정의 통일
+      if (m.meta?.is_study === false && m.meta?.mode === 'studying') {
         offTopicCountMap[m.student_user_id] = (offTopicCountMap[m.student_user_id] || 0) + 1
       }
     })

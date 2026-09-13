@@ -264,7 +264,7 @@ export default function ParentPage() {
                     }`}
                   >
                     <span className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">
-                      {s.handle[0].toUpperCase()}
+                      {s.handle?.[0]?.toUpperCase() ?? '?'}
                     </span>
                     {s.handle}
                   </button>
@@ -290,7 +290,7 @@ export default function ParentPage() {
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 font-bold text-lg">
-                      {student.handle[0].toUpperCase()}
+                      {student.handle?.[0]?.toUpperCase() ?? '?'}
                     </div>
                     <div>
                       <h2 className="text-xl font-bold text-gray-900">{student.handle}</h2>

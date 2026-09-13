@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSessionFromRequest } from '@/lib/auth'
 import { checkRateLimit } from '@/lib/ratelimit'
-import { validateImageUpload } from '@/lib/upload'
+import { validateImageUpload, validateImageBase64 } from '@/lib/upload'
 import OpenAI from 'openai'
 
 // 10 concept-card requests per hour per student
@@ -86,6 +86,12 @@ export async function POST(request: NextRequest) {
       question = body.question || ''
       imageBase64 = body.imageBase64
       imageMimeType = body.imageMimeType || 'image/jpeg'
+      if (imageBase64) {
+        const validationError = validateImageBase64(imageBase64)
+        if (validationError) {
+          return NextResponse.json({ ok: false, error: validationError }, { status: 400 })
+        }
+      }
     }
 
     if (!imageBase64) {

@@ -72,9 +72,13 @@ export async function POST(request: NextRequest) {
 
     // 수신 이메일은 users.notification_email에 저장
     if (typeof email === 'string' && email.trim()) {
+      const trimmed = email.trim()
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed) || trimmed.length > 254) {
+        return NextResponse.json({ ok: false, error: '이메일 형식이 올바르지 않습니다.' }, { status: 400 })
+      }
       await supabaseAdmin
         .from('users')
-        .update({ notification_email: email.trim() })
+        .update({ notification_email: trimmed })
         .eq('id', session.id)
     }
 

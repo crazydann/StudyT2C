@@ -27,15 +27,21 @@ export async function POST(request: NextRequest) {
     const correctIndex = quiz.correct_index ?? 0
     const isCorrect = correctIndex === selectedChoice
 
-    // 실제 스키마에 맞게 저장 (quiz_id 컬럼 없음 → quiz_question으로 매칭)
-    await supabaseAdmin.from('concept_review_attempts').insert({
+    // 실제 스키마에 맞게 저장 (quiz_id 로 정확 매칭, 컬럼 미적용 시 제외하고 재시도)
+    const attemptRow = {
       student_user_id: session.id,
       source_question: opts.concept || null,
       quiz_question: quiz.quiz_question,
       correct_index: correctIndex,
       user_choice_index: selectedChoice,
       is_correct: isCorrect,
-    })
+    }
+    const { error: insErr } = await supabaseAdmin
+      .from('concept_review_attempts')
+      .insert({ ...attemptRow, quiz_id: quizId })
+    if (insErr) {
+      await supabaseAdmin.from('concept_review_attempts').insert(attemptRow)
+    }
 
     return NextResponse.json({
       ok: true,

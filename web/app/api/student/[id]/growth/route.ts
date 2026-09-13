@@ -44,11 +44,23 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = requireSessionFromRequest(request)
+    const session = requireSessionFromRequest(request, ['teacher', 'parent', 'student'])
     const studentId = params.id
 
     if (session.role === 'student' && session.id !== studentId) {
       return NextResponse.json({ ok: false, error: '권한이 없습니다.' }, { status: 403 })
+    }
+
+    if (session.role === 'parent' || session.role === 'teacher') {
+      const linkTable = session.role === 'teacher' ? 'teacher_student_links' : 'parent_student_links'
+      const ownerCol = session.role === 'teacher' ? 'teacher_user_id' : 'parent_user_id'
+      const { data: link } = await supabaseAdmin
+        .from(linkTable)
+        .select('student_user_id')
+        .eq(ownerCol, session.id)
+        .eq('student_user_id', studentId)
+        .maybeSingle()
+      if (!link) return NextResponse.json({ ok: false, error: '권한이 없습니다.' }, { status: 403 })
     }
 
     const now = new Date()
@@ -101,17 +113,18 @@ export async function GET(
       .gte('created_at', thirtyDaysAgo.toISOString())
 
     const activeDays = new Set<string>()
+    const kstDay = (ts: string) => new Date(new Date(ts).getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
     ;(chatDays || []).forEach((m) => {
-      activeDays.add(new Date(m.created_at).toISOString().slice(0, 10))
+      activeDays.add(kstDay(m.created_at))
     })
     ;(submissionDays || []).forEach((s) => {
-      activeDays.add(new Date(s.created_at).toISOString().slice(0, 10))
+      activeDays.add(kstDay(s.created_at))
     })
 
     let streak = 0
     for (let i = 0; i < 30; i++) {
       const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000)
-      const dateStr = d.toISOString().slice(0, 10)
+      const dateStr = kstDay(d.toISOString())
       if (activeDays.has(dateStr)) {
         streak++
       } else {

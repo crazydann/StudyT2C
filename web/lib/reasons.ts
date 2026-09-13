@@ -11,8 +11,6 @@ export const SUBJECT_LABELS: Record<string, string> = {
   OTHER: '기타',
 }
 
-export const SUBJECT_CODES = Object.keys(SUBJECT_LABELS)
-
 export function normalizeSubject(raw?: string | null): string | null {
   if (!raw) return null
   const s = String(raw).trim().toUpperCase()

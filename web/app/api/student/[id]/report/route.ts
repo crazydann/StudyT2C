@@ -24,6 +24,21 @@ export async function GET(
       return NextResponse.json({ ok: false, error: '권한이 없습니다.' }, { status: 403 })
     }
 
+    // Parent/teacher must have a verified link to this student
+    if (session.role === 'parent' || session.role === 'teacher') {
+      const linkTable = session.role === 'teacher' ? 'teacher_student_links' : 'parent_student_links'
+      const ownerCol = session.role === 'teacher' ? 'teacher_user_id' : 'parent_user_id'
+      const { data: link } = await supabaseAdmin
+        .from(linkTable)
+        .select('student_user_id')
+        .eq(ownerCol, session.id)
+        .eq('student_user_id', studentId)
+        .maybeSingle()
+      if (!link) {
+        return NextResponse.json({ ok: false, error: '권한이 없습니다.' }, { status: 403 })
+      }
+    }
+
     const since30 = daysAgo(30)
     const since7 = daysAgo(7)
 
@@ -34,14 +49,24 @@ export async function GET(
       .maybeSingle()
     const studentHandle = studentRow?.handle || '학생'
 
-    // ── 1. Problem items (30d) ──────────────────────────────────────
-    const { data: problemItems } = await supabaseAdmin
+    // ── 1. Problem items (30d) — subject_code 포함 단일 조회. 컬럼 미적용 시 제외하고 재시도 ──
+    let { data: problemItems, error: piErr } = await supabaseAdmin
       .from('problem_items')
-      .select('id, is_correct, key_concepts, reason_category, created_at, student_user_id')
+      .select('id, is_correct, key_concepts, reason_category, created_at, subject_code')
       .eq('student_user_id', studentId)
       .gte('created_at', since30)
       .order('created_at', { ascending: false })
-      .limit(500)
+      .limit(1000)
+    if (piErr) {
+      const retry = await supabaseAdmin
+        .from('problem_items')
+        .select('id, is_correct, key_concepts, reason_category, created_at')
+        .eq('student_user_id', studentId)
+        .gte('created_at', since30)
+        .order('created_at', { ascending: false })
+        .limit(1000)
+      problemItems = retry.data as typeof problemItems
+    }
 
     const items = problemItems || []
     const totalItems = items.length
@@ -131,33 +156,23 @@ export async function GET(
       (c) => c.role === 'user' && c.created_at >= since7
     )
 
-    // Subject question counts from chat meta (보조 지표)
-    const subjectQCounts: Record<string, number> = {}
-    userChats30.forEach((c) => {
-      const meta = typeof c.meta === 'string' ? tryParse(c.meta) : c.meta || {}
-      const subj = normalizeSubject(meta?.subject as string | undefined)
-      if (subj) subjectQCounts[subj] = (subjectQCounts[subj] || 0) + 1
-    })
+    // 30일 튜터 질문 수: 최근 300행 캡의 영향을 받지 않도록 별도 count 쿼리로 정확히 집계
+    const { count: userQuestionCount } = await supabaseAdmin
+      .from('chat_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('student_user_id', studentId)
+      .eq('role', 'user')
+      .gte('created_at', since30)
 
-    // 과목별 성취도: problem_items.subject_code 기준 실제 정답률 (컬럼 미적용 시 빈 배열로 graceful)
+    // 과목별 성취도: problem_items.subject_code 기준 실제 정답률 (위 단일 조회 결과 재사용, 컬럼 미적용 시 빈 배열)
     const subjectStats: Record<string, { correct: number; total: number }> = {}
-    try {
-      const { data: subjItems, error: subjErr } = await supabaseAdmin
-        .from('problem_items')
-        .select('subject_code, is_correct')
-        .eq('student_user_id', studentId)
-        .gte('created_at', since30)
-        .limit(2000)
-      if (!subjErr) {
-        ;(subjItems || []).forEach((it) => {
-          const code = normalizeSubject(it.subject_code)
-          if (!code) return
-          if (!subjectStats[code]) subjectStats[code] = { correct: 0, total: 0 }
-          subjectStats[code].total++
-          if (it.is_correct) subjectStats[code].correct++
-        })
-      }
-    } catch {}
+    items.forEach((it) => {
+      const code = normalizeSubject((it as { subject_code?: string | null }).subject_code)
+      if (!code) return
+      if (!subjectStats[code]) subjectStats[code] = { correct: 0, total: 0 }
+      subjectStats[code].total++
+      if (it.is_correct) subjectStats[code].correct++
+    })
 
     const subjectAchievement = Object.entries(subjectStats)
       .map(([code, s]) => ({
@@ -166,7 +181,6 @@ export async function GET(
         problemCount: s.total,
         correctCount: s.correct,
         correctRate: s.total > 0 ? Math.round((s.correct / s.total) * 100) : 0,
-        questionCount: subjectQCounts[code] || 0,
       }))
       .sort((a, b) => b.problemCount - a.problemCount)
     const avgScore =
@@ -199,27 +213,33 @@ export async function GET(
         }
       })
 
-    // Study chat history (30d) - messages where meta.is_study=true
+    // Study chat history (30d): is_study/answer 는 assistant 메시지에 있으므로
+    // 질문(user)–답변(assistant) 을 시간순으로 페어링해서 구성한다.
+    const chronological = [...allChats].sort((a, b) => a.created_at.localeCompare(b.created_at))
     const studyChatItems: {
       created_at: string
       question: string
       answer: string
       subject: string
     }[] = []
-    userChats30.forEach((c) => {
-      const meta = typeof c.meta === 'string' ? tryParse(c.meta) : c.meta || {}
-      if (!meta) return
+    for (let i = 0; i < chronological.length; i++) {
+      const q = chronological[i]
+      if (q.role !== 'user') continue
+      const a = chronological[i + 1]
+      if (!a || a.role !== 'assistant') continue
+      const meta = typeof a.meta === 'string' ? tryParse(a.meta) : a.meta || {}
+      if (!meta) continue
       const isStudy =
         meta.is_study === true || meta.is_study === 'true' || String(meta.is_study).toLowerCase() === 'true'
-      if (isStudy) {
-        studyChatItems.push({
-          created_at: c.created_at,
-          question: (c.content || '').slice(0, 200),
-          answer: (meta.answer || '').slice(0, 400),
-          subject: meta.subject || 'OTHER',
-        })
-      }
-    })
+      if (!isStudy) continue
+      studyChatItems.push({
+        created_at: q.created_at,
+        question: (q.content || '').slice(0, 200),
+        answer: (a.content || '').slice(0, 400),
+        subject: normalizeSubject(meta.subject as string | undefined) || '학습',
+      })
+    }
+    studyChatItems.reverse() // 최신순
 
     // ── 4. Homework data ────────────────────────────────────────────
     const { data: allAssignments } = await supabaseAdmin
@@ -228,16 +248,17 @@ export async function GET(
       .eq('student_user_id', studentId)
 
     const assignIds = (allAssignments || []).map((a) => a.id)
-    let submittedIds: string[] = []
+    let submittedCount = 0
     if (assignIds.length > 0) {
       const { data: hwSubs } = await supabaseAdmin
         .from('homework_submissions')
         .select('assignment_id')
         .in('assignment_id', assignIds)
-      submittedIds = (hwSubs || []).map((s) => s.assignment_id)
+      // 과제당 중복 제출을 1건으로 집계 (제출률 100% 초과 방지)
+      submittedCount = new Set((hwSubs || []).map((s) => s.assignment_id)).size
     }
     const submissionRate =
-      assignIds.length > 0 ? submittedIds.length / assignIds.length : 0
+      assignIds.length > 0 ? submittedCount / assignIds.length : 0
 
     // ── 5. Streak days ──────────────────────────────────────────────
     const streakDays = await computeStreakDays(studentId)
@@ -279,7 +300,7 @@ export async function GET(
     }
 
     // ── 8. Trend sentence ───────────────────────────────────────────
-    const totalQ = userChats30.length
+    const totalQ = userQuestionCount ?? userChats30.length
     const crPct = Math.round(avgCorrectRate * 100)
     let trendSentence = `최근 30일간 튜터 질문 ${totalQ}건, 평균 정답률 ${crPct}%입니다.`
     if (wrongReasons.length > 0) {
@@ -396,6 +417,11 @@ function tryParse(s: string): Record<string, unknown> | null {
   }
 }
 
+// 한국 시간(UTC+9) 기준 날짜 문자열(YYYY-MM-DD). 오전(KST) 활동이 전날 UTC로 밀리는 문제 방지.
+function kstDayStr(d: Date): string {
+  return new Date(d.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
+}
+
 async function computeStreakDays(studentId: string): Promise<number> {
   const since = daysAgo(365)
   const activeDates = new Set<string>()
@@ -408,7 +434,7 @@ async function computeStreakDays(studentId: string): Promise<number> {
       .gte('created_at', since)
       .limit(2000)
     ;(subs || []).forEach((r) => {
-      if (r.created_at) activeDates.add(r.created_at.slice(0, 10))
+      if (r.created_at) activeDates.add(kstDayStr(new Date(r.created_at)))
     })
   } catch {}
 
@@ -421,21 +447,19 @@ async function computeStreakDays(studentId: string): Promise<number> {
       .gte('created_at', since)
       .limit(2000)
     ;(chats || []).forEach((r) => {
-      if (r.created_at) activeDates.add(r.created_at.slice(0, 10))
+      if (r.created_at) activeDates.add(kstDayStr(new Date(r.created_at)))
     })
   } catch {}
 
-  const today = new Date()
-  const todayStr = today.toISOString().slice(0, 10)
+  const todayStr = kstDayStr(new Date())
   if (!activeDates.has(todayStr)) return 0
 
   let streak = 0
-  const cur = new Date(today)
+  const cur = new Date()
   while (true) {
-    const s = cur.toISOString().slice(0, 10)
-    if (activeDates.has(s)) {
+    if (activeDates.has(kstDayStr(cur))) {
       streak++
-      cur.setDate(cur.getDate() - 1)
+      cur.setTime(cur.getTime() - 24 * 60 * 60 * 1000)
     } else {
       break
     }

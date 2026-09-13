@@ -46,6 +46,9 @@ export async function POST(
     if (typeof note !== 'string') {
       return NextResponse.json({ ok: false, error: '노트 내용을 입력해주세요.' }, { status: 400 })
     }
+    if (note.length > 10000) {
+      return NextResponse.json({ ok: false, error: '노트가 너무 깁니다 (최대 10,000자).' }, { status: 400 })
+    }
 
     const { error } = await supabaseAdmin
       .from('teacher_student_notes')

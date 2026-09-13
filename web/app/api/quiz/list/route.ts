@@ -19,17 +19,30 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: true, quizzes: [] })
     }
 
-    // 최근 시도 결과를 quiz_question 기준으로 매핑 (concept_review_attempts에 quiz_id 컬럼이 없음)
-    const { data: attempts } = await supabaseAdmin
+    // 최근 시도 결과 매핑: quiz_id 우선(정확), 컬럼 미적용/구 데이터는 quiz_question 텍스트로 폴백
+    let { data: attempts } = await supabaseAdmin
       .from('concept_review_attempts')
-      .select('quiz_question, is_correct, created_at')
+      .select('quiz_id, quiz_question, is_correct, created_at')
       .eq('student_user_id', session.id)
       .order('created_at', { ascending: false })
+    if (!attempts) {
+      const retry = await supabaseAdmin
+        .from('concept_review_attempts')
+        .select('quiz_question, is_correct, created_at')
+        .eq('student_user_id', session.id)
+        .order('created_at', { ascending: false })
+      attempts = retry.data as typeof attempts
+    }
 
-    const latestAttemptByQuestion: Record<string, { is_correct: boolean }> = {}
+    const latestByQuizId: Record<string, { is_correct: boolean }> = {}
+    const latestByQuestion: Record<string, { is_correct: boolean }> = {}
     for (const a of attempts || []) {
-      if (a.quiz_question && !latestAttemptByQuestion[a.quiz_question]) {
-        latestAttemptByQuestion[a.quiz_question] = { is_correct: a.is_correct }
+      const row = a as { quiz_id?: string | null; quiz_question?: string; is_correct: boolean }
+      if (row.quiz_id && !latestByQuizId[row.quiz_id]) {
+        latestByQuizId[row.quiz_id] = { is_correct: row.is_correct }
+      }
+      if (row.quiz_question && !latestByQuestion[row.quiz_question]) {
+        latestByQuestion[row.quiz_question] = { is_correct: row.is_correct }
       }
     }
 
@@ -43,7 +56,7 @@ export async function GET(request: NextRequest) {
         correct_index: q.correct_index ?? 0,
         explanation: opts.explanation || '',
         created_at: q.created_at,
-        lastAttempt: q.quiz_question ? latestAttemptByQuestion[q.quiz_question] || null : null,
+        lastAttempt: latestByQuizId[q.id] || (q.quiz_question ? latestByQuestion[q.quiz_question] || null : null),
       }
     })
 

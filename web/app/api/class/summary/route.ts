@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
       assignmentIds.push(a.id)
     })
 
-    const submissionCountByStudent: Record<string, number> = {}
+    const submittedByStudent: Record<string, Set<string>> = {}
     if (assignmentIds.length > 0) {
       const { data: hwSubs } = await supabaseAdmin
         .from('homework_submissions')
@@ -84,7 +84,9 @@ export async function GET(request: NextRequest) {
       ;(hwSubs || []).forEach((sub) => {
         const studentId = assignmentToStudent[sub.assignment_id]
         if (!studentId) return
-        submissionCountByStudent[studentId] = (submissionCountByStudent[studentId] || 0) + 1
+        // 과제당 중복 제출을 1건으로 집계
+        if (!submittedByStudent[studentId]) submittedByStudent[studentId] = new Set()
+        submittedByStudent[studentId].add(sub.assignment_id)
       })
     }
 
@@ -95,6 +97,7 @@ export async function GET(request: NextRequest) {
       .eq('role', 'assistant')
       .gte('created_at', sevenDaysAgo.toISOString())
       .filter('meta->>is_study', 'eq', 'false')
+      .filter('meta->>mode', 'eq', 'studying')
 
     const offTopicCountByStudent: Record<string, number> = {}
     ;(offTopicMsgs || []).forEach((m) => {
@@ -102,17 +105,21 @@ export async function GET(request: NextRequest) {
     })
 
     const studentMetrics = (students || []).map((student) => {
-      const correctRateValue = correctRate(itemsByStudent[student.id])
+      const studentItems = itemsByStudent[student.id] || []
+      const hasItems = studentItems.length > 0
+      const correctRateValue = hasItems ? correctRate(studentItems) : null
 
       const assignmentCount = assignmentCountByStudent[student.id] || 0
+      const submittedCount = submittedByStudent[student.id]?.size || 0
       const submissionRate = assignmentCount > 0
-        ? Math.round(((submissionCountByStudent[student.id] || 0) / assignmentCount) * 100)
+        ? Math.round((submittedCount / assignmentCount) * 100)
         : 0
 
       const offTopicCount = offTopicCountByStudent[student.id] || 0
 
-      const wrongRate = 100 - correctRateValue
-      const riskScore = Math.round(wrongRate * 0.6 + (100 - submissionRate) * 0.4)
+      // 채점 데이터가 없는 학생은 '0% 오답'으로 오인하지 않도록 위험 산정에서 제외
+      const wrongRate = correctRateValue === null ? 0 : 100 - correctRateValue
+      const riskScore = hasItems ? Math.round(wrongRate * 0.6 + (100 - submissionRate) * 0.4) : 0
 
       return {
         id: student.id,
@@ -122,14 +129,15 @@ export async function GET(request: NextRequest) {
         submissionRate,
         offTopicCount,
         riskScore,
-        atRisk: riskScore >= 50,
+        atRisk: hasItems && riskScore >= 50,
       }
     })
 
     const atRiskCount = studentMetrics.filter((s) => s.atRisk).length
+    const rated = studentMetrics.filter((s) => s.correctRate !== null)
     const avgCorrectRate =
-      studentMetrics.length > 0
-        ? Math.round(studentMetrics.reduce((sum, s) => sum + s.correctRate, 0) / studentMetrics.length)
+      rated.length > 0
+        ? Math.round(rated.reduce((sum, s) => sum + (s.correctRate as number), 0) / rated.length)
         : 0
     const avgSubmissionRate =
       studentMetrics.length > 0

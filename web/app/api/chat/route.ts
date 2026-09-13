@@ -4,22 +4,24 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireSessionFromRequest } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
 import { textChat } from '@/lib/openai'
+import { checkRateLimit } from '@/lib/ratelimit'
+import { validateImageUpload, MAX_UPLOAD_BYTES } from '@/lib/upload'
+
+// 20 messages per minute per user
+const CHAT_RATE_LIMIT = { max: 20, windowMs: 60 * 1000 }
 
 export async function GET(request: NextRequest) {
   try {
     const session = requireSessionFromRequest(request, ['student'])
-    const { searchParams } = new URL(request.url)
-    const studentId = searchParams.get('studentId') || session.id
-
+    // Students can only read their own chat history
     const { data: messages, error } = await supabaseAdmin
       .from('chat_messages')
       .select('*')
-      .eq('student_user_id', studentId)
+      .eq('student_user_id', session.id)
       .order('created_at', { ascending: true })
       .limit(50)
 
     if (error) throw error
-
     return NextResponse.json({ ok: true, messages })
   } catch (err) {
     if (err instanceof Error && err.message === 'UNAUTHORIZED') {
@@ -34,8 +36,11 @@ export async function POST(request: NextRequest) {
   try {
     const session = requireSessionFromRequest(request, ['student'])
 
+    if (!checkRateLimit(`chat:${session.id}`, CHAT_RATE_LIMIT.max, CHAT_RATE_LIMIT.windowMs)) {
+      return NextResponse.json({ ok: false, error: '너무 많은 요청입니다. 잠시 후 다시 시도해주세요.' }, { status: 429 })
+    }
+
     let message: string
-    let studentId: string | undefined
     let imageBase64: string | undefined
     let imageMimeType: string | undefined
 
@@ -43,24 +48,30 @@ export async function POST(request: NextRequest) {
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData()
       message = (formData.get('message') as string) || ''
-      studentId = (formData.get('studentId') as string) || undefined
       const file = formData.get('image') as File | null
       if (file) {
-        const buffer = await file.arrayBuffer()
-        imageBase64 = Buffer.from(buffer).toString('base64')
+        const buffer = Buffer.from(await file.arrayBuffer())
+        const validationError = validateImageUpload(file, buffer)
+        if (validationError) {
+          return NextResponse.json({ ok: false, error: validationError }, { status: 400 })
+        }
+        imageBase64 = buffer.toString('base64')
         imageMimeType = file.type
       }
     } else {
       const body = await request.json()
       message = body.message
-      studentId = body.studentId
     }
 
     if (!message?.trim()) {
       return NextResponse.json({ ok: false, error: '메시지를 입력해주세요.' }, { status: 400 })
     }
+    if (message.length > 2000) {
+      return NextResponse.json({ ok: false, error: '메시지가 너무 깁니다 (최대 2,000자).' }, { status: 400 })
+    }
 
-    const targetStudentId = studentId || session.id
+    // Always use the authenticated student's own ID — never trust client-provided studentId
+    const targetStudentId = session.id
 
     const { data: studentRow } = await supabaseAdmin
       .from('users')

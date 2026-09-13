@@ -9,20 +9,17 @@ function getAnonKey(): string {
 }
 
 function getServiceKey(): string {
-  return process.env.SUPABASE_SERVICE_ROLE_KEY || getAnonKey()
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!key) {
+    if (process.env.NODE_ENV === 'production') throw new Error('SUPABASE_SERVICE_ROLE_KEY is required')
+    return getAnonKey()
+  }
+  return key
 }
 
-let _supabase: SupabaseClient | null = null
 let _supabaseAdmin: SupabaseClient | null = null
 
-export function getSupabase(): SupabaseClient {
-  if (!_supabase) {
-    _supabase = createClient(getSupabaseUrl(), getAnonKey())
-  }
-  return _supabase
-}
-
-export function getSupabaseAdmin(): SupabaseClient {
+function getSupabaseAdmin(): SupabaseClient {
   if (!_supabaseAdmin) {
     _supabaseAdmin = createClient(getSupabaseUrl(), getServiceKey())
   }
@@ -43,5 +40,4 @@ function makeLazyProxy(getter: () => SupabaseClient): SupabaseClient {
   })
 }
 
-export const supabase = makeLazyProxy(getSupabase)
 export const supabaseAdmin = makeLazyProxy(getSupabaseAdmin)
